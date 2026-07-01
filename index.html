@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CCP Operations Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',sans-serif;background:#F1F5F9;color:#1E293B;min-height:100vh}
+.topbar{background:#0F172A;color:#fff;padding:12px 20px;display:flex;align-items:center;justify-content:space-between}
+.topbar-left{display:flex;align-items:center;gap:10px}
+.logo{background:#065A82;padding:4px 10px;border-radius:4px;font-weight:600;font-size:13px;letter-spacing:0.5px}
+.topbar h1{font-size:16px;font-weight:500}
+.topbar-right{display:flex;align-items:center;gap:12px;font-size:12px}
+.sync-badge{color:#94A3B8;font-size:11px}
+.sync-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#22C55E;margin-right:4px;vertical-align:middle}
+.btn-refresh{background:rgba(255,255,255,0.1);border:none;color:#fff;padding:5px 14px;border-radius:4px;font-size:12px;cursor:pointer;font-family:inherit}
+.btn-refresh:hover{background:rgba(255,255,255,0.2)}
+.container{max-width:1100px;margin:0 auto;padding:16px}
+.mod{background:#fff;border-radius:8px;border:1px solid #E2E8F0;padding:14px;margin-bottom:12px;box-shadow:0 1px 2px rgba(0,0,0,0.04)}
+.mod-title{font-size:13px;font-weight:600;margin:0 0 10px;color:#334155;text-transform:uppercase;letter-spacing:0.3px}
+/* Pipeline Cards */
+.pipe-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.pipe-card{padding:14px 10px;border-radius:8px;text-align:center}
+.pipe-count{font-size:28px;font-weight:700;line-height:1.1}
+.pipe-label{font-size:11px;font-weight:600;margin-top:4px;text-transform:uppercase;letter-spacing:0.3px}
+.p-new{background:#DBEAFE;color:#1E40AF}
+.p-pend{background:#FEF3C7;color:#B45309}
+.p-appr{background:#D1FAE5;color:#047857}
+.p-rev{background:#EDE9FE;color:#6D28D9}
+.p-fail{background:#FEE2E2;color:#B91C1C}
+/* Two column layout */
+.two-col{display:grid;grid-template-columns:1.6fr 1fr;gap:12px}
+/* Queue Table */
+.qtbl{width:100%;border-collapse:collapse;font-size:12px}
+.qtbl th{background:#F8FAFC;padding:8px 10px;text-align:left;font-size:11px;font-weight:600;color:#64748B;text-transform:uppercase;letter-spacing:0.3px;border-bottom:1px solid #E2E8F0}
+.qtbl td{padding:8px 10px;border-bottom:1px solid #F1F5F9}
+.qtbl tr:hover{background:#F8FAFC}
+.q-link{color:#065A82;text-decoration:none;font-weight:600}
+.q-link:hover{text-decoration:underline}
+.days-badge{display:inline-block;min-width:26px;text-align:center;padding:2px 8px;border-radius:10px;font-weight:600;font-size:11px}
+.db-green{background:#A7F3D0;color:#065F46}
+.db-yellow{background:#FDE68A;color:#92400E}
+.db-red{background:#FECACA;color:#991B1B}
+.row-red{background:#FFF5F5}
+.row-yellow{background:#FFFBEB}
+.row-green{background:#F0FDF4}
+/* Ticket Cards */
+.ticket-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.tc{padding:14px 10px;border-radius:8px;text-align:center}
+.tc-count{font-size:26px;font-weight:700;line-height:1.1}
+.tc-label{font-size:11px;font-weight:600;margin-top:4px;text-transform:uppercase}
+.tc-open{background:#FEE2E2;color:#B91C1C}
+.tc-pend{background:#FEF3C7;color:#B45309}
+.tc-solved{background:#D1FAE5;color:#047857}
+.ticket-total{text-align:center;font-size:12px;color:#64748B;margin-top:10px;padding-top:10px;border-top:1px solid #E2E8F0}
+.ticket-total span{font-weight:600;color:#1E293B}
+/* Comm Cards */
+.comm-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.cc{padding:12px 8px;border-radius:8px;text-align:center;background:#F8FAFC;border:1px solid #E2E8F0}
+.cc-count{font-size:26px;font-weight:700;line-height:1.1}
+.cc-label{font-size:11px;font-weight:600;margin-top:4px;text-transform:uppercase}
+.cc-total .cc-count{color:#1E40AF}
+.cc-ack .cc-count{color:#047857}
+.cc-miss .cc-count{color:#B91C1C}
+.cc-pend .cc-count{color:#B45309}
+/* Alerts */
+.alerts{display:flex;flex-wrap:wrap;gap:8px}
+.alert{display:flex;align-items:center;gap:6px;padding:8px 14px;border-radius:8px;font-size:12px;font-weight:600}
+.a-rush{background:#FEE2E2;color:#991B1B}
+.a-aged{background:#FEF3C7;color:#92400E}
+.a-miss{background:#FEE2E2;color:#991B1B}
+.a-clear{background:#D1FAE5;color:#065F46}
+/* Agent SOD Table */
+.sod-tbl{width:100%;border-collapse:collapse;font-size:13px}
+.sod-tbl th{background:#F8FAFC;padding:10px 12px;text-align:left;font-size:11px;font-weight:600;color:#64748B;text-transform:uppercase;letter-spacing:0.3px;border-bottom:2px solid #E2E8F0}
+.sod-tbl th.num{text-align:right}
+.sod-tbl td{padding:10px 12px;border-bottom:1px solid #F1F5F9}
+.sod-tbl td.num{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+.sod-tbl tr:hover{background:#F8FAFC}
+.sod-tbl .total-row{background:#EFF6FF;font-weight:700}
+.sod-tbl .total-row td{border-top:2px solid #3B82F6;color:#1E293B}
+.agent-name{font-weight:600;color:#1E293B}
+.worked-val{color:#047857}
+/* Trend Chart */
+.trend-row{display:flex;align-items:flex-end;gap:6px;height:100px;padding:8px 0}
+.trend-grp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px}
+.trend-bars{display:flex;gap:2px;align-items:flex-end;height:80px}
+.trend-bar{width:16px;border-radius:3px 3px 0 0;min-height:3px}
+.tb-new{background:#93C5FD}
+.tb-pend{background:#FCD34D}
+.tb-appr{background:#6EE7B7}
+.trend-date{font-size:10px;color:#94A3B8}
+.trend-legend{display:flex;gap:14px;justify-content:center;margin-top:8px}
+.trend-legend-item{display:flex;align-items:center;gap:5px;font-size:11px;color:#64748B}
+.legend-dot{width:10px;height:10px;border-radius:2px}
+/* Footer */
+.footer{text-align:center;padding:12px;font-size:11px;color:#94A3B8;margin-top:4px}
+.loading{text-align:center;padding:40px;color:#94A3B8;font-size:14px}
+.error-msg{background:#FEF2F2;border:1px solid #FECACA;color:#991B1B;padding:10px 16px;border-radius:8px;font-size:13px;margin-bottom:12px}
+@media(max-width:768px){
+  .pipe-grid{grid-template-columns:repeat(3,1fr)}
+  .two-col{grid-template-columns:1fr}
+  .comm-grid{grid-template-columns:repeat(2,1fr)}
+  .container{padding:10px}
+}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="topbar-left">
+    <span class="logo">CCP</span>
+    <h1>Operations Dashboard</h1>
+  </div>
+  <div class="topbar-right">
+    <span class="sync-badge" id="syncInfo">Loading...</span>
+    <button class="btn-refresh" onclick="loadAll()">Refresh</button>
+  </div>
+</div>
+<div class="container">
+  <div id="error"></div>
+
+  <!-- Module 1: Order Pipeline -->
+  <div class="mod">
+    <p class="mod-title">Order Pipeline</p>
+    <div class="pipe-grid" id="pipeline">
+      <div class="pipe-card p-new"><div class="pipe-count">—</div><div class="pipe-label">New</div></div>
+      <div class="pipe-card p-pend"><div class="pipe-count">—</div><div class="pipe-label">Conf. Pending</div></div>
+      <div class="pipe-card p-appr"><div class="pipe-count">—</div><div class="pipe-label">Approved</div></div>
+      <div class="pipe-card p-rev"><div class="pipe-count">—</div><div class="pipe-label">Ops Review</div></div>
+      <div class="pipe-card p-fail"><div class="pipe-count">—</div><div class="pipe-label">Failed</div></div>
+    </div>
+  </div>
+
+  <div class="two-col">
+    <!-- Module 2: Confirmation Pending Queue -->
+    <div class="mod">
+      <p class="mod-title">Confirmation Pending Queue</p>
+      <div id="pendingQueue"><div class="loading">Loading...</div></div>
+    </div>
+    <!-- Module 3: Zendesk Tickets -->
+    <div class="mod">
+      <p class="mod-title">Zendesk Tickets</p>
+      <div id="ticketCards"><div class="loading">Loading...</div></div>
+    </div>
+  </div>
+
+  <!-- Module 4: Communication Stats -->
+  <div class="mod">
+    <p class="mod-title">Communication Stats</p>
+    <div id="commStats"><div class="loading">Loading...</div></div>
+  </div>
+
+  <!-- Module 5: Alerts -->
+  <div class="mod">
+    <p class="mod-title">Alerts</p>
+    <div id="alerts"><div class="loading">Loading...</div></div>
+  </div>
+
+  <!-- Agent SOD/Worked/Remaining Table -->
+  <div class="mod">
+    <p class="mod-title">Agent Performance — SOD / EOD Tracker</p>
+    <div id="sodTable"><div class="loading">Loading...</div></div>
+  </div>
+
+  <!-- Module 6: 7-Day Trend -->
+  <div class="mod">
+    <p class="mod-title">7-Day Trend</p>
+    <div id="trendChart"><div class="loading">Loading...</div></div>
+  </div>
+
+  <div class="footer">Cozy Corner Patios — Operations Dashboard &middot; Data syncs every 15 minutes</div>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://ovmbykpmjeurzeeqjntr.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_cOO_6TKEMchrsLZX05B5Ag_Ii75Ag-p';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const ERP_BASE = 'https://erp.cozycornerpatios.com/app/sales-order';
+
+function erpLink(name) {
+  return ERP_BASE + '/' + name;
+}
+
+function daysBadge(d) {
+  if (d >= 3) return '<span class="days-badge db-red">' + d + 'd</span>';
+  if (d >= 2) return '<span class="days-badge db-yellow">' + d + 'd</span>';
+  return '<span class="days-badge db-green">' + d + 'd</span>';
+}
+
+function rowClass(d) {
+  if (d >= 3) return 'row-red';
+  if (d >= 2) return 'row-yellow';
+  return 'row-green';
+}
+
+async function loadAll() {
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+  try {
+    // Fetch orders
+    const { data: orders, error: oErr } = await sb.from('orders').select('*');
+    if (oErr) throw oErr;
+
+    // Fetch tickets
+    const { data: tickets, error: tErr } = await sb.from('tickets').select('*');
+    if (tErr) throw tErr;
+
+    // Fetch comms
+    const { data: comms, error: cErr } = await sb.from('communications').select('*');
+    if (cErr) throw cErr;
+
+    // Fetch snapshots (last 7 days)
+    const d7 = new Date(); d7.setDate(d7.getDate() - 7);
+    const sevenAgo = d7.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    const { data: snaps, error: sErr } = await sb.from('daily_snapshots').select('*').gte('snapshot_date', sevenAgo).order('snapshot_date');
+    if (sErr) throw sErr;
+
+    renderPipeline(orders || []);
+    renderPendingQueue(orders || []);
+    renderTickets(tickets || []);
+    renderComms(comms || []);
+    renderAlerts(orders || [], tickets || [], comms || []);
+    renderSOD(snaps || [], today, orders || []);
+    renderTrend(snaps || []);
+
+    const now = new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' });
+    document.getElementById('syncInfo').innerHTML = '<span class="sync-dot"></span>Updated ' + now + ' IST';
+    document.getElementById('error').innerHTML = '';
+  } catch (err) {
+    document.getElementById('error').innerHTML = '<div class="error-msg">Error: ' + err.message + '</div>';
+  }
+}
+
+function renderPipeline(orders) {
+  const counts = { NEW: 0, 'CONFIRMATION PENDING': 0, APPROVED: 0, 'OPS REVIEW': 0, FAILED: 0 };
+  orders.forEach(o => { if (counts[o.ops_status] !== undefined) counts[o.ops_status]++; });
+  document.getElementById('pipeline').innerHTML =
+    '<div class="pipe-card p-new"><div class="pipe-count">' + counts.NEW + '</div><div class="pipe-label">New</div></div>' +
+    '<div class="pipe-card p-pend"><div class="pipe-count">' + counts['CONFIRMATION PENDING'] + '</div><div class="pipe-label">Conf. Pending</div></div>' +
+    '<div class="pipe-card p-appr"><div class="pipe-count">' + counts.APPROVED + '</div><div class="pipe-label">Approved</div></div>' +
+    '<div class="pipe-card p-rev"><div class="pipe-count">' + counts['OPS REVIEW'] + '</div><div class="pipe-label">Ops Review</div></div>' +
+    '<div class="pipe-card p-fail"><div class="pipe-count">' + counts.FAILED + '</div><div class="pipe-label">Failed</div></div>';
+}
+
+function renderPendingQueue(orders) {
+  const pending = orders.filter(o => o.ops_status === 'CONFIRMATION PENDING').sort((a, b) => b.days_pending - a.days_pending);
+  if (pending.length === 0) {
+    document.getElementById('pendingQueue').innerHTML = '<div style="text-align:center;padding:20px;color:#94A3B8">No pending confirmations</div>';
+    return;
+  }
+  let html = '<table class="qtbl"><thead><tr><th>Order</th><th>Agent</th><th>Type</th><th>Qty</th><th>Days</th></tr></thead><tbody>';
+  pending.forEach(o => {
+    html += '<tr class="' + rowClass(o.days_pending) + '">' +
+      '<td><a class="q-link" href="' + erpLink(o.order_name) + '" target="_blank">' + o.order_name + '</a></td>' +
+      '<td>' + o.agent + '</td>' +
+      '<td>' + o.order_type + '</td>' +
+      '<td>' + (o.total_qty || 0) + '</td>' +
+      '<td>' + daysBadge(o.days_pending) + '</td></tr>';
+  });
+  html += '</tbody></table>';
+  document.getElementById('pendingQueue').innerHTML = html;
+}
+
+function renderTickets(tickets) {
+  const open = tickets.filter(t => t.status === 'open').length;
+  const pend = tickets.filter(t => t.status === 'pending').length;
+  const solved = tickets.filter(t => t.status === 'solved').length;
+  const total = tickets.length;
+  document.getElementById('ticketCards').innerHTML =
+    '<div class="ticket-grid">' +
+    '<div class="tc tc-open"><div class="tc-count">' + open + '</div><div class="tc-label">Open</div></div>' +
+    '<div class="tc tc-pend"><div class="tc-count">' + pend + '</div><div class="tc-label">Pending</div></div>' +
+    '<div class="tc tc-solved"><div class="tc-count">' + solved + '</div><div class="tc-label">Solved</div></div>' +
+    '</div>' +
+    '<div class="ticket-total">Total: <span>' + total + '</span> tickets</div>';
+}
+
+function renderComms(comms) {
+  const total = comms.length;
+  const acked = comms.filter(c => c.acknowledged).length;
+  const missed = comms.filter(c => !c.acknowledged).length;
+  document.getElementById('commStats').innerHTML =
+    '<div class="comm-grid">' +
+    '<div class="cc cc-total"><div class="cc-count">' + total + '</div><div class="cc-label">Total</div></div>' +
+    '<div class="cc cc-ack"><div class="cc-count">' + acked + '</div><div class="cc-label">Handled</div></div>' +
+    '<div class="cc cc-miss"><div class="cc-count">' + missed + '</div><div class="cc-label">Missed</div></div>' +
+    '<div class="cc cc-pend"><div class="cc-count">' + (total - acked - missed) + '</div><div class="cc-label">Pending</div></div>' +
+    '</div>';
+}
+
+function renderAlerts(orders, tickets, comms) {
+  const badges = [];
+  const rush = orders.filter(o => o.is_rush).length;
+  if (rush > 0) badges.push('<div class="alert a-rush">&#9889; ' + rush + ' rush order' + (rush > 1 ? 's' : '') + '</div>');
+  const aged = orders.filter(o => o.ops_status === 'CONFIRMATION PENDING' && o.days_pending >= 3).length;
+  if (aged > 0) badges.push('<div class="alert a-aged">&#9200; ' + aged + ' pending 3+ days</div>');
+  const missed = comms.filter(c => !c.acknowledged).length;
+  if (missed > 0) badges.push('<div class="alert a-miss">&#9993; ' + missed + ' missed comms</div>');
+  if (badges.length === 0) badges.push('<div class="alert a-clear">&#10004; All clear — no urgent items</div>');
+  document.getElementById('alerts').innerHTML = '<div class="alerts">' + badges.join('') + '</div>';
+}
+
+function renderSOD(snaps, today, orders) {
+  const todaySnaps = snaps.filter(s => s.snapshot_date === today);
+  if (todaySnaps.length === 0) {
+    document.getElementById('sodTable').innerHTML = '<div style="text-align:center;padding:20px;color:#94A3B8">No snapshot data for today yet</div>';
+    return;
+  }
+  let totalSod = 0, totalRem = 0, totalWorked = 0, totalOrders = 0;
+  let rows = '';
+  todaySnaps.sort((a, b) => a.agent.localeCompare(b.agent));
+  todaySnaps.forEach(s => {
+    const sod = s.sod_new_count || 0;
+    const rem = s.new_count || 0;
+    const worked = Math.max(0, sod - rem);
+    const tot = s.total_orders || 0;
+    totalSod += sod; totalRem += rem; totalWorked += worked; totalOrders += tot;
+    rows += '<tr><td class="agent-name">' + s.agent + '</td>' +
+      '<td class="num">' + sod + '</td>' +
+      '<td class="num">' + rem + '</td>' +
+      '<td class="num worked-val">' + worked + '</td>' +
+      '<td class="num">' + tot + '</td></tr>';
+  });
+  rows += '<tr class="total-row"><td>TOTAL</td>' +
+    '<td class="num">' + totalSod + '</td>' +
+    '<td class="num">' + totalRem + '</td>' +
+    '<td class="num worked-val">' + totalWorked + '</td>' +
+    '<td class="num">' + totalOrders + '</td></tr>';
+
+  document.getElementById('sodTable').innerHTML =
+    '<table class="sod-tbl"><thead><tr><th>Agent</th><th class="num">SOD (New)</th><th class="num">Remaining</th><th class="num">Worked</th><th class="num">Total Orders</th></tr></thead><tbody>' + rows + '</tbody></table>';
+}
+
+function renderTrend(snaps) {
+  const dateMap = {};
+  snaps.forEach(s => {
+    if (!dateMap[s.snapshot_date]) dateMap[s.snapshot_date] = { n: 0, p: 0, a: 0 };
+    dateMap[s.snapshot_date].n += (s.new_count || 0);
+    dateMap[s.snapshot_date].p += (s.pending_count || 0);
+    dateMap[s.snapshot_date].a += (s.approved_count || 0);
+  });
+  const dates = Object.keys(dateMap).sort().slice(-7);
+  if (dates.length === 0) {
+    document.getElementById('trendChart').innerHTML = '<div style="text-align:center;padding:20px;color:#94A3B8">No trend data yet</div>';
+    return;
+  }
+  const maxVal = Math.max(...dates.map(d => Math.max(dateMap[d].n, dateMap[d].p, dateMap[d].a)), 1);
+  let html = '<div class="trend-row">';
+  dates.forEach(d => {
+    const v = dateMap[d];
+    const hn = Math.max(3, (v.n / maxVal) * 70);
+    const hp = Math.max(3, (v.p / maxVal) * 70);
+    const ha = Math.max(3, (v.a / maxVal) * 70);
+    const label = new Date(d + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', day: 'numeric' });
+    html += '<div class="trend-grp"><div class="trend-bars">' +
+      '<div class="trend-bar tb-new" style="height:' + hn + 'px" title="New: ' + v.n + '"></div>' +
+      '<div class="trend-bar tb-pend" style="height:' + hp + 'px" title="Pending: ' + v.p + '"></div>' +
+      '<div class="trend-bar tb-appr" style="height:' + ha + 'px" title="Approved: ' + v.a + '"></div>' +
+      '</div><div class="trend-date">' + label + '</div></div>';
+  });
+  html += '</div>';
+  html += '<div class="trend-legend">' +
+    '<div class="trend-legend-item"><div class="legend-dot" style="background:#93C5FD"></div>New</div>' +
+    '<div class="trend-legend-item"><div class="legend-dot" style="background:#FCD34D"></div>Pending</div>' +
+    '<div class="trend-legend-item"><div class="legend-dot" style="background:#6EE7B7"></div>Approved</div>' +
+    '</div>';
+  document.getElementById('trendChart').innerHTML = html;
+}
+
+loadAll();
+setInterval(loadAll, 60000);
+</script>
+</body>
+</html>
