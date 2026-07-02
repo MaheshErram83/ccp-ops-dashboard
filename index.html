@@ -1,522 +1,625 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>CozyCorne Patios — Attendance</title>
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
-  <style>
-    :root {
-      --bg: #0b0f1a; --card: #111827; --border: #1e2a3a;
-      --accent: #00e5ff; --accent2: #7c3aed;
-      --green: #22c55e; --red: #ef4444;
-      --yellow: #fbbf24; --orange: #fb923c; --purple: #c084fc;
-      --text: #f1f5f9; --muted: #64748b; --radius: 16px;
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text);
-      min-height: 100vh; display: flex; flex-direction: column; align-items: center;
-      padding: 24px 16px 80px;
-      background-image:
-        radial-gradient(ellipse at 20% 0%, rgba(124,58,237,0.15) 0%, transparent 60%),
-        radial-gradient(ellipse at 80% 100%, rgba(0,229,255,0.1) 0%, transparent 60%);
-    }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CCP Operations Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0f1117;--bg2:#1a1d27;--bg3:#242836;--bg4:#2e3345;
+  --tx:#e8eaed;--tx2:#9ca3af;--tx3:#6b7280;
+  --accent:#2dd4bf;--accent2:#14b8a6;--accent-dim:rgba(45,212,191,.12);
+  --blue:#3b82f6;--blue-dim:rgba(59,130,246,.12);
+  --amber:#f59e0b;--amber-dim:rgba(245,158,11,.12);
+  --red:#ef4444;--red-dim:rgba(239,68,68,.12);
+  --green:#22c55e;--green-dim:rgba(34,197,94,.12);
+  --purple:#a855f7;--purple-dim:rgba(168,85,247,.12);
+  --orange:#f97316;--orange-dim:rgba(249,115,22,.12);
+  --border:#2e3345;--radius:8px;
+  --font:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  --mono:'SF Mono',Monaco,'Cascadia Code',monospace;
+}
+html{font-size:14px}
+body{background:var(--bg);color:var(--tx);font-family:var(--font);line-height:1.5;min-height:100vh}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
 
-    /* HEADER */
-    header {
-      width: 100%; max-width: 480px; display: flex; justify-content: space-between;
-      align-items: center; margin-bottom: 20px; padding-bottom: 16px;
-      border-bottom: 1px solid var(--border);
-    }
-    .logo {
-      font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 800;
-      background: linear-gradient(135deg, var(--accent), var(--accent2));
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-    }
-    .live-time { font-size: 12px; color: var(--muted); text-align: right; }
-    .live-time span { display: block; color: var(--text); font-size: 15px; font-weight: 600; }
+/* ===== TOP BAR (Sales Dashboard style) ===== */
+.topbar{
+  background:var(--bg2);border-bottom:1px solid var(--border);
+  padding:10px 20px;display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;z-index:100;
+}
+.topbar-left{display:flex;align-items:center;gap:14px}
+.topbar-logo{
+  width:36px;height:36px;border-radius:8px;
+  background:linear-gradient(135deg,var(--accent),var(--blue));
+  display:flex;align-items:center;justify-content:center;
+  font-weight:800;font-size:1rem;color:var(--bg);
+}
+.topbar-title h1{font-size:1rem;font-weight:700;letter-spacing:-.01em;line-height:1.2}
+.topbar-title p{font-size:.65rem;text-transform:uppercase;letter-spacing:.1em;color:var(--accent);font-weight:600}
+.topbar-right{display:flex;align-items:center;gap:16px}
+.date-pick{
+  display:flex;align-items:center;gap:6px;
+  background:var(--bg3);border:1px solid var(--border);border-radius:6px;
+  padding:5px 10px;font-size:.8rem;color:var(--tx);cursor:pointer;
+}
+.date-pick input{
+  background:transparent;border:none;color:var(--tx);font-family:var(--font);
+  font-size:.8rem;width:110px;outline:none;cursor:pointer;
+}
+.date-pick input::-webkit-calendar-picker-indicator{filter:invert(1);opacity:.5;cursor:pointer}
+.live-dot{display:flex;align-items:center;gap:6px;font-size:.78rem;color:var(--tx2)}
+.live-dot::before{
+  content:'';width:8px;height:8px;border-radius:50%;background:var(--green);
+  animation:pulse 2s infinite;
+}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.sync-status{
+  display:flex;align-items:center;gap:6px;
+  background:var(--bg3);border:1px solid var(--border);border-radius:6px;
+  padding:5px 12px;font-size:.75rem;color:var(--tx2);
+}
+.sync-status .sync-icon{width:14px;height:14px;display:inline-block}
 
-    /* SHEET LINK BUTTON */
-    .sheet-link {
-      display: flex; align-items: center; justify-content: center; gap: 8px;
-      width: 100%; max-width: 480px; margin-bottom: 14px;
-      background: rgba(34,197,94,0.08); border: 1px solid rgba(34,197,94,0.25);
-      border-radius: 12px; padding: 13px 16px;
-      color: var(--green); font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700;
-      text-decoration: none; letter-spacing: 0.5px; transition: all 0.2s;
-    }
-    .sheet-link:hover { background: rgba(34,197,94,0.16); transform: translateY(-2px); box-shadow: 0 6px 20px rgba(34,197,94,0.2); }
+/* ===== AGENT TAB BAR ===== */
+.agent-bar{
+  background:var(--bg2);border-bottom:1px solid var(--border);
+  padding:0 20px;display:flex;align-items:stretch;gap:0;overflow-x:auto;
+  scrollbar-width:none;
+}
+.agent-bar::-webkit-scrollbar{display:none}
+.agent-tab{
+  display:flex;align-items:center;gap:7px;
+  padding:11px 18px;border:none;background:transparent;
+  color:var(--tx2);font-size:.82rem;font-weight:500;
+  cursor:pointer;white-space:nowrap;
+  border-bottom:2px solid transparent;
+  transition:all .15s;font-family:var(--font);
+}
+.agent-tab:hover{color:var(--tx);background:rgba(255,255,255,.03)}
+.agent-tab.active{color:var(--tx);border-bottom-color:var(--accent);font-weight:600}
+.agent-tab .dot{
+  width:8px;height:8px;border-radius:50%;flex-shrink:0;
+}
+.agent-tab .dot.green{background:#22c55e}
+.agent-tab .dot.orange{background:#f97316}
+.agent-tab .dot.blue{background:#3b82f6}
+.agent-tab .dot.purple{background:#a855f7}
+.agent-tab .dot.red{background:#ef4444}
+.agent-tab .dot.teal{background:#2dd4bf}
 
-    /* REMINDER BANNER */
-    #reminderBanner {
-      display: none; width: 100%; max-width: 480px;
-      background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.4);
-      border-radius: 12px; padding: 14px 16px; margin-bottom: 14px;
-      font-size: 13px; color: #f87171; font-weight: 500; gap: 10px;
-      animation: blinkBorder 1.5s infinite;
-    }
-    #reminderBanner.show { display: flex; align-items: center; }
-    @keyframes blinkBorder {
-      0%,100% { border-color: rgba(239,68,68,0.4); }
-      50%      { border-color: rgba(239,68,68,0.9); }
-    }
+/* Section tabs (Team Total / Dashboard / Performance) */
+.section-bar{
+  background:var(--bg);border-bottom:1px solid var(--border);
+  padding:0 20px;display:flex;align-items:stretch;gap:0;
+}
+.section-tab{
+  display:flex;align-items:center;gap:6px;
+  padding:10px 16px;border:none;background:transparent;
+  color:var(--tx3);font-size:.78rem;font-weight:500;
+  cursor:pointer;white-space:nowrap;
+  border-bottom:2px solid transparent;
+  transition:all .15s;font-family:var(--font);
+}
+.section-tab:hover{color:var(--tx2)}
+.section-tab.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+.section-tab .sec-icon{font-size:.85rem}
 
-    /* LIVE TIMER CARD */
-    .timer-card {
-      width: 100%; max-width: 480px; margin-bottom: 14px;
-      background: linear-gradient(135deg, rgba(0,229,255,0.07), rgba(124,58,237,0.07));
-      border: 1px solid rgba(0,229,255,0.2); border-radius: var(--radius);
-      padding: 20px 24px; display: none;
-    }
-    .timer-card.show { display: block; }
-    .timer-label { font-family: 'Syne', sans-serif; font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); margin-bottom: 6px; }
-    .timer-value { font-family: 'Syne', sans-serif; font-size: 40px; font-weight: 800; letter-spacing: -2px; color: var(--accent); line-height: 1; }
-    .timer-sub { font-size: 12px; color: var(--muted); margin-top: 6px; }
+/* ===== MAIN CONTENT ===== */
+.shell{max-width:1400px;margin:0 auto;padding:16px 20px 40px}
+.tab-panel{display:none}
+.tab-panel.active{display:block}
 
-    /* STATS GRID */
-    .stats-grid {
-      width: 100%; max-width: 480px;
-      display: none; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px;
-    }
-    .stat-box { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px; }
-    .stat-icon { font-size: 18px; margin-bottom: 6px; }
-    .stat-val { font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 800; }
-    .stat-lbl { font-size: 10px; color: var(--muted); margin-top: 3px; text-transform: uppercase; letter-spacing: 0.8px; }
-    .stat-work   .stat-val { color: var(--green); }
-    .stat-break  .stat-val { color: var(--yellow); }
-    .stat-lunch  .stat-val { color: var(--orange); }
-    .stat-dinner .stat-val { color: var(--purple); }
+/* ===== KPI CARDS ===== */
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:20px}
+.kpi{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:16px}
+.kpi-label{font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--tx3);margin-bottom:4px}
+.kpi-val{font-size:1.7rem;font-weight:700;font-family:var(--mono)}
+.kpi-sub{font-size:.72rem;color:var(--tx2);margin-top:2px}
+.kpi.teal .kpi-val{color:var(--accent)}
+.kpi.blue .kpi-val{color:var(--blue)}
+.kpi.amber .kpi-val{color:var(--amber)}
+.kpi.red .kpi-val{color:var(--red)}
+.kpi.green .kpi-val{color:var(--green)}
+.kpi.purple .kpi-val{color:var(--purple)}
 
-    /* CARD */
-    .card {
-      background: var(--card); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 22px;
-      width: 100%; max-width: 480px; margin-bottom: 14px;
-    }
-    .card-title {
-      font-family: 'Syne', sans-serif; font-size: 12px; text-transform: uppercase;
-      letter-spacing: 1.5px; color: var(--muted); margin-bottom: 14px;
-    }
-    label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 5px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.8px; }
-    input, select {
-      width: 100%; background: var(--bg); border: 1px solid var(--border);
-      border-radius: 10px; color: var(--text); font-family: 'DM Sans', sans-serif;
-      font-size: 14px; padding: 11px 13px; margin-bottom: 13px; outline: none; transition: border 0.2s;
-    }
-    input:focus, select:focus { border-color: var(--accent); }
-    select option { background: var(--card); }
+/* ===== SECTIONS ===== */
+.section{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:16px}
+.section-title{font-size:.85rem;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.section-title .badge{font-size:.7rem;padding:2px 8px;border-radius:10px;font-weight:500}
 
-    /* BUTTONS */
-    .btn {
-      width: 100%; padding: 14px; border: none; border-radius: 12px;
-      font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700;
-      letter-spacing: 0.5px; cursor: pointer; transition: all 0.2s;
-      display: flex; align-items: center; justify-content: center; gap: 8px;
-    }
-    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-    .btn-checkin  { background: linear-gradient(135deg,#22c55e,#16a34a); color:#fff; margin-bottom:10px; }
-    .btn-checkin:hover:not(:disabled)  { transform:translateY(-2px); box-shadow:0 8px 24px rgba(34,197,94,0.35); }
-    .btn-checkout { background: linear-gradient(135deg,#ef4444,#dc2626); color:#fff; }
-    .btn-checkout:hover:not(:disabled) { transform:translateY(-2px); box-shadow:0 8px 24px rgba(239,68,68,0.35); }
-    .breaks-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 4px; }
-    .btn-break { padding:12px 8px; font-size:12px; border-radius:12px; width:100%; }
-    .btn-break-start  { background:rgba(251,191,36,0.15); color:#fbbf24; border:1px solid rgba(251,191,36,0.3); }
-    .btn-break-start:hover:not(:disabled)  { background:rgba(251,191,36,0.25); transform:translateY(-2px); }
-    .btn-break-end    { background:rgba(251,191,36,0.07); color:#f59e0b;  border:1px solid rgba(251,191,36,0.15); }
-    .btn-break-end:hover:not(:disabled)    { background:rgba(251,191,36,0.15); transform:translateY(-2px); }
-    .btn-lunch-start  { background:rgba(249,115,22,0.15); color:#fb923c; border:1px solid rgba(249,115,22,0.3); }
-    .btn-lunch-start:hover:not(:disabled)  { background:rgba(249,115,22,0.25); transform:translateY(-2px); }
-    .btn-lunch-end    { background:rgba(249,115,22,0.07); color:#f97316; border:1px solid rgba(249,115,22,0.15); }
-    .btn-lunch-end:hover:not(:disabled)    { background:rgba(249,115,22,0.15); transform:translateY(-2px); }
-    .btn-dinner-start { background:rgba(168,85,247,0.15); color:#c084fc; border:1px solid rgba(168,85,247,0.3); }
-    .btn-dinner-start:hover:not(:disabled) { background:rgba(168,85,247,0.25); transform:translateY(-2px); }
-    .btn-dinner-end   { background:rgba(168,85,247,0.07); color:#a855f7; border:1px solid rgba(168,85,247,0.15); }
-    .btn-dinner-end:hover:not(:disabled)   { background:rgba(168,85,247,0.15); transform:translateY(-2px); }
-    .section-divider { font-family:'Syne',sans-serif; font-size:11px; text-transform:uppercase; letter-spacing:1.5px; color:var(--muted); margin:14px 0 8px; }
+/* ===== PIPELINE ===== */
+.pipeline{display:flex;gap:8px;flex-wrap:wrap}
+.pipe-stage{flex:1;min-width:130px;background:var(--bg3);border-radius:var(--radius);padding:12px;text-align:center}
+.pipe-stage .pipe-count{font-size:1.5rem;font-weight:700;font-family:var(--mono)}
+.pipe-stage .pipe-label{font-size:.68rem;color:var(--tx3);text-transform:uppercase;letter-spacing:.04em;margin-top:2px}
+.pipe-stage.p-new .pipe-count{color:var(--blue)}
+.pipe-stage.p-conf .pipe-count{color:var(--amber)}
+.pipe-stage.p-approved .pipe-count{color:var(--green)}
+.pipe-stage.p-review .pipe-count{color:var(--purple)}
+.pipe-stage.p-failed .pipe-count{color:var(--red)}
+.pipe-stage.p-hold .pipe-count{color:var(--tx2)}
 
-    /* STATUS */
-    .status-bar { display:flex; align-items:center; gap:8px; font-size:13px; padding:10px 13px; border-radius:8px; margin-bottom:14px; font-weight:500; }
-    .status-idle    { background:rgba(100,116,139,0.15); color:var(--muted); }
-    .status-success { background:rgba(34,197,94,0.15);   color:var(--green); }
-    .status-error   { background:rgba(239,68,68,0.15);   color:var(--red); }
-    .status-loading { background:rgba(0,229,255,0.1);    color:var(--accent); }
-    .dot { width:8px;height:8px;border-radius:50%;background:currentColor;flex-shrink:0;animation:pulse 1.5s infinite; }
-    @keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.3} }
-    .location-box { background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:11px 13px;font-size:12px;color:var(--muted);margin-bottom:13px;display:none; }
-    .location-box.visible { display:block; }
-    .location-box strong { color:var(--accent);display:block;margin-bottom:3px;font-size:10px;text-transform:uppercase;letter-spacing:1px; }
+/* ===== TABLES ===== */
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.8rem}
+th{text-align:left;padding:8px 10px;color:var(--tx3);font-weight:500;font-size:.7rem;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg2)}
+td{padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:middle}
+tr:hover td{background:var(--bg3)}
+.status-badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:.72rem;font-weight:500;white-space:nowrap}
+.s-new{background:var(--blue-dim);color:var(--blue)}
+.s-conf{background:var(--amber-dim);color:var(--amber)}
+.s-approved{background:var(--green-dim);color:var(--green)}
+.s-review{background:var(--purple-dim);color:var(--purple)}
+.s-failed{background:var(--red-dim);color:var(--red)}
+.s-hold{background:rgba(107,114,128,.15);color:var(--tx2)}
+.age-badge{font-family:var(--mono);font-size:.72rem;padding:2px 6px;border-radius:4px}
+.age-ok{background:var(--green-dim);color:var(--green)}
+.age-warn{background:var(--amber-dim);color:var(--amber)}
+.age-danger{background:var(--red-dim);color:var(--red)}
 
-    /* LOG */
-    .log-list { list-style:none; display:flex; flex-direction:column; gap:9px; }
-    .log-item {
-      background:var(--bg); border:1px solid var(--border); border-radius:10px;
-      padding:11px 13px; font-size:13px; display:flex; justify-content:space-between;
-      align-items:center; animation:slideIn 0.3s ease;
-    }
-    @keyframes slideIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
-    .log-name { font-weight:600; color:var(--text); }
-    .log-time { color:var(--muted); font-size:11px; margin-top:2px; }
-    .log-dur  { color:var(--accent); font-size:11px; font-weight:600; margin-top:2px; }
-    .badge { font-size:10px;font-weight:700;padding:3px 9px;border-radius:100px;font-family:'Syne',sans-serif;letter-spacing:0.5px;white-space:nowrap; }
-    .badge-in     { background:rgba(34,197,94,0.2);  color:var(--green); }
-    .badge-out    { background:rgba(239,68,68,0.2);  color:var(--red); }
-    .badge-break  { background:rgba(251,191,36,0.2); color:#fbbf24; }
-    .badge-lunch  { background:rgba(249,115,22,0.2); color:#fb923c; }
-    .badge-dinner { background:rgba(168,85,247,0.2); color:#c084fc; }
-    .empty-log { text-align:center; color:var(--muted); font-size:13px; padding:20px 0; }
-  </style>
+/* ===== AGENT SOD GRID ===== */
+.sod-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.agent-card{background:var(--bg3);border-radius:var(--radius);padding:14px;cursor:pointer;transition:all .15s;border:1px solid transparent}
+.agent-card:hover{border-color:var(--accent);transform:translateY(-1px)}
+.agent-card .name{font-weight:600;font-size:.9rem;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.agent-card .name .dot{width:8px;height:8px;border-radius:50%;background:var(--green)}
+.agent-card .stats{display:flex;gap:16px}
+.agent-card .stat{text-align:center}
+.agent-card .stat-val{font-size:1.2rem;font-weight:700;font-family:var(--mono)}
+.agent-card .stat-lbl{font-size:.63rem;text-transform:uppercase;letter-spacing:.04em;color:var(--tx3)}
+.agent-card .stat.sod .stat-val{color:var(--blue)}
+.agent-card .stat.worked .stat-val{color:var(--green)}
+.agent-card .stat.remaining .stat-val{color:var(--amber)}
+
+/* ===== CHART ===== */
+.chart-container{position:relative;height:200px;display:flex;align-items:flex-end;gap:6px;padding:20px 0 24px}
+.chart-bar-group{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px}
+.chart-bar{border-radius:4px 4px 0 0;transition:height .4s ease;min-height:2px;position:relative}
+.chart-bar:hover{opacity:.8}
+.chart-bar .tip{position:absolute;top:-22px;left:50%;transform:translateX(-50%);font-size:.65rem;font-family:var(--mono);color:var(--tx);background:var(--bg4);padding:1px 6px;border-radius:3px;white-space:nowrap;opacity:0;transition:opacity .15s;z-index:2}
+.chart-bar:hover .tip{opacity:1}
+.chart-label{font-size:.65rem;color:var(--tx3);margin-top:4px}
+.chart-legend{display:flex;gap:16px;margin-top:8px;justify-content:center}
+.chart-legend span{font-size:.7rem;color:var(--tx2);display:flex;align-items:center;gap:4px}
+.chart-legend span::before{content:'';width:10px;height:10px;border-radius:2px;display:inline-block}
+.chart-legend .l-worked::before{background:var(--accent)}
+.chart-legend .l-new::before{background:var(--blue)}
+
+/* ===== ZENDESK TICKET CARDS ===== */
+.ticket-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px}
+.ticket-card{background:var(--bg3);border-radius:var(--radius);padding:12px;border-left:3px solid var(--accent)}
+.ticket-card.t-urgent{border-left-color:var(--red)}
+.ticket-card.t-high{border-left-color:var(--amber)}
+.ticket-card .t-subj{font-weight:500;font-size:.82rem;margin-bottom:4px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.ticket-card .t-meta{font-size:.7rem;color:var(--tx3);display:flex;gap:8px;flex-wrap:wrap}
+
+/* ===== LOADING / EMPTY ===== */
+.loading{text-align:center;padding:40px;color:var(--tx3)}
+.spinner{width:28px;height:28px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.empty{text-align:center;padding:24px;color:var(--tx3);font-size:.85rem}
+
+/* ===== RESPONSIVE ===== */
+@media(max-width:768px){
+  .topbar{flex-direction:column;gap:8px;align-items:flex-start}
+  .topbar-right{flex-wrap:wrap}
+  .kpi-row{grid-template-columns:repeat(2,1fr)}
+  .pipeline{flex-direction:column}
+  .sod-grid{grid-template-columns:1fr}
+}
+</style>
 </head>
 <body>
 
-<!-- HEADER -->
-<header>
-  <div>
-    <div class="logo">🪑 CozyCorne Patios</div>
-    <div style="font-size:10px;color:var(--muted);margin-top:3px;letter-spacing:1px;font-family:'Syne',sans-serif;">ATTENDANCE SYSTEM</div>
+<!-- ===== TOP BAR ===== -->
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="topbar-logo">OP</div>
+    <div class="topbar-title">
+      <h1>Ops Dashboard</h1>
+      <p>Performance Hub</p>
+    </div>
   </div>
-  <div class="live-time">
-    <span id="clockTime">--:--:--</span>
-    <span id="clockDate">-- -- ----</span>
-  </div>
-</header>
-
-<!-- 📊 VIEW GOOGLE SHEET BUTTON -->
-<a class="sheet-link"
-   href="https://docs.google.com/spreadsheets/d/1XS1JtFBk1FcXbz9VDDAdvAA5lI_1Nzm4rLkFF95vvZQ/edit?gid=0#gid=0"
-   target="_blank">
-  📊 View Attendance Sheet
-</a>
-
-<!-- 🔔 REMINDER BANNER -->
-<div id="reminderBanner">
-  <span style="font-size:22px">🔔</span>
-  <div>
-    <strong style="display:block;margin-bottom:2px;">Don't forget to Check Out!</strong>
-    You've been working over 8 hrs — please check out.
+  <div class="topbar-right">
+    <div class="date-pick">
+      <span>DATE</span>
+      <input type="date" id="datePicker" />
+    </div>
+    <div class="live-dot">Live</div>
+    <div class="sync-status" id="syncStatus">
+      <svg class="sync-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+      <span id="syncText">Syncing…</span>
+    </div>
   </div>
 </div>
 
-<!-- 🕐 LIVE WORK TIMER -->
-<div class="timer-card" id="timerCard">
-  <div class="timer-label">⏱ Time Since Check-In</div>
-  <div class="timer-value" id="timerValue">00:00:00</div>
-  <div class="timer-sub" id="timerSub">Working...</div>
+<!-- ===== AGENT TAB BAR ===== -->
+<div class="agent-bar" id="agentBar">
+  <!-- Injected by JS -->
 </div>
 
-<!-- 📊 STATS DASHBOARD -->
-<div class="stats-grid" id="statsGrid">
-  <div class="stat-box stat-work">
-    <div class="stat-icon">💼</div>
-    <div class="stat-val" id="statWork">0m</div>
-    <div class="stat-lbl">Work Time</div>
-  </div>
-  <div class="stat-box stat-break">
-    <div class="stat-icon">☕</div>
-    <div class="stat-val" id="statBreak">0m</div>
-    <div class="stat-lbl">Total Break</div>
-  </div>
-  <div class="stat-box stat-lunch">
-    <div class="stat-icon">🍱</div>
-    <div class="stat-val" id="statLunch">0m</div>
-    <div class="stat-lbl">Total Lunch</div>
-  </div>
-  <div class="stat-box stat-dinner">
-    <div class="stat-icon">🍽️</div>
-    <div class="stat-val" id="statDinner">0m</div>
-    <div class="stat-lbl">Total Dinner</div>
-  </div>
+<!-- ===== SECTION TAB BAR ===== -->
+<div class="section-bar" id="sectionBar">
+  <button class="section-tab active" data-sec="dashboard" onclick="switchSection('dashboard')">
+    <span class="sec-icon">⚡</span> Dashboard
+  </button>
+  <button class="section-tab" data-sec="team-total" onclick="switchSection('team-total')">
+    <span class="sec-icon">📊</span> Team Total
+  </button>
+  <button class="section-tab" data-sec="performance" onclick="switchSection('performance')">
+    <span class="sec-icon">📈</span> Performance
+  </button>
 </div>
 
-<!-- EMPLOYEE DETAILS -->
-<div class="card">
-  <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
-    Employee Details
-    <button onclick="clearDetails()" style="font-size:11px;background:rgba(239,68,68,0.1);color:#ef4444;border:1px solid rgba(239,68,68,0.2);border-radius:6px;padding:3px 10px;cursor:pointer;font-family:'DM Sans',sans-serif;">✏️ Change</button>
+<!-- ===== MAIN CONTENT ===== -->
+<div class="shell">
+  <div id="mainLoading" class="loading"><div class="spinner"></div>Loading dashboard…</div>
+  <div id="mainContent" style="display:none">
+    <!-- Content rendered dynamically based on active agent + section -->
+    <div id="dynamicContent"></div>
   </div>
-  <label for="empName">Full Name</label>
-  <input type="text" id="empName" placeholder="Enter your full name"/>
-  <label for="empId">Employee ID</label>
-  <input type="text" id="empId" placeholder="e.g. EMP001"/>
-  <label for="empDept">Department</label>
-  <select id="empDept">
-    <option value="">Select Department</option>
-    <option>Operations</option><option>HR</option><option>Finance</option>
-    <option>IT</option><option>Sales</option><option>Admin</option>
-  </select>
-</div>
-
-<!-- MARK ATTENDANCE -->
-<div class="card">
-  <div class="card-title">Mark Attendance</div>
-  <div id="statusBar" class="status-bar status-idle">
-    <div class="dot"></div>
-    <span id="statusText">Ready to mark attendance</span>
-  </div>
-  <div id="locationBox" class="location-box">
-    <strong>📍 GPS Location Captured</strong>
-    <span id="locationText">--</span>
-  </div>
-  <button class="btn btn-checkin"  id="checkInBtn"  onclick="markAttendance('Check-In')">✅ Check In</button>
-  <button class="btn btn-checkout" id="checkOutBtn" onclick="markAttendance('Check-Out')">🚪 Check Out</button>
-
-  <div class="section-divider">☕ Break</div>
-  <div class="breaks-grid">
-    <button class="btn btn-break btn-break-start"  onclick="markAttendance('Break Start')">☕ Break Start</button>
-    <button class="btn btn-break btn-break-end"    onclick="markAttendance('Break End')">↩️ Break End</button>
-  </div>
-  <div class="section-divider">🍱 Lunch</div>
-  <div class="breaks-grid">
-    <button class="btn btn-break btn-lunch-start"  onclick="markAttendance('Lunch Start')">🍱 Lunch Start</button>
-    <button class="btn btn-break btn-lunch-end"    onclick="markAttendance('Lunch End')">↩️ Lunch End</button>
-  </div>
-  <div class="section-divider">🍽️ Dinner</div>
-  <div class="breaks-grid">
-    <button class="btn btn-break btn-dinner-start" onclick="markAttendance('Dinner Start')">🍽️ Dinner Start</button>
-    <button class="btn btn-break btn-dinner-end"   onclick="markAttendance('Dinner End')">↩️ Dinner End</button>
-  </div>
-</div>
-
-<!-- 📋 TODAY'S LOG -->
-<div class="card">
-  <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
-    Today's Log
-    <span id="logCount" style="font-size:11px;background:rgba(0,229,255,0.1);color:var(--accent);border-radius:20px;padding:2px 10px;font-family:'Syne',sans-serif;">0 entries</span>
-  </div>
-  <ul class="log-list" id="logList">
-    <li class="empty-log">No entries yet today</li>
-  </ul>
 </div>
 
 <script>
-  // ═══════════════════════════════════════════════════════
-  // 🔧 PASTE YOUR APPS SCRIPT URL HERE (one-time setup)
-  const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw0yIKTlb2UcGOAFWUWU7E5FImuCJ68GaUkvYHPTtm0ZDAc2VPdBI3yaq1QAqYnEuVafg/exec";
-  // ═══════════════════════════════════════════════════════
+// ============================================================
+// CONFIG
+// ============================================================
+const SUPABASE_URL = 'https://ovmbykpmjeurzeeqjntr.supabase.co';
+const SUPABASE_KEY = 'PASTE_YOUR_ANON_KEY_HERE';
+// ☝️ Supabase Dashboard → Settings → API → anon public key
 
-  let checkInTime  = null;
-  let checkOutTime = null;
-  let timerInterval = null;
-  let reminderTimer = null;
-  let logCount = 0;
-  const stamps = { Break: [], Lunch: [], Dinner: [] };
+const ERP_BASE = 'https://erp.cozycornerpatios.com';
+const ZENDESK_BASE = 'https://yourcozycornerpatios.zendesk.com';
 
-  // CLOCK
-  function updateClock() {
-    const n = new Date();
-    document.getElementById('clockTime').textContent =
-      n.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
-    document.getElementById('clockDate').textContent =
-      n.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
-  }
-  setInterval(updateClock,1000); updateClock();
+const AGENTS = [
+  { key: 'leo',     name: 'Leo',     email: 'leo@cozycornerpatios.com',     dot: 'green' },
+  { key: 'oscar',   name: 'Oscar',   email: 'oscar@cozycornerpatios.com',   dot: 'green' },
+  { key: 'smith',   name: 'Smith',   email: 'smith@cozycornerpatios.com',   dot: 'blue' },
+  { key: 'richard', name: 'Richard', email: 'richard@cozycornerpatios.com', dot: 'green' },
+  { key: 'jason',   name: 'Jason',   email: 'jason@cozycornerpatios.com',   dot: 'purple' },
+  { key: 'liam',    name: 'Liam',    email: 'liam@cozycornerpatios.com',    dot: 'teal' },
+];
 
-  // FORMAT
-  function fmtSec(s) {
-    const h=Math.floor(s/3600), m=Math.floor((s%3600)/60), ss=s%60;
-    return `${h}:${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
-  }
-  function fmtMs(ms) {
-    const tot=Math.round(ms/60000), h=Math.floor(tot/60), m=tot%60;
-    return h>0 ? `${h}h ${m}m` : `${m}m`;
-  }
+const STATUS_MAP = {
+  'NEW':                        { cls: 's-new',      pipeCls: 'p-new',      label: 'NEW' },
+  'CONFIRMATION PENDING':       { cls: 's-conf',     pipeCls: 'p-conf',     label: 'CONF. PENDING' },
+  'APPROVED':                   { cls: 's-approved', pipeCls: 'p-approved', label: 'APPROVED' },
+  'OPS REVIEW':                 { cls: 's-review',   pipeCls: 'p-review',   label: 'OPS REVIEW' },
+  'FAILED':                     { cls: 's-failed',   pipeCls: 'p-failed',   label: 'FAILED' },
+  'PRE_APPROVAL_CUSTOMER HOLD': { cls: 's-hold',     pipeCls: 'p-hold',     label: 'CUST. HOLD' },
+};
+const PIPELINE_ORDER = Object.keys(STATUS_MAP);
 
-  // LIVE TIMER
-  function startWorkTimer() {
-    document.getElementById('timerCard').classList.add('show');
-    document.getElementById('statsGrid').style.display = 'grid';
-    if (timerInterval) clearInterval(timerInterval);
-    timerInterval = setInterval(() => {
-      if (!checkInTime) return;
-      const elapsed = Math.floor((Date.now() - checkInTime) / 1000);
-      document.getElementById('timerValue').textContent = fmtSec(elapsed);
-      document.getElementById('timerSub').textContent =
-        `Checked in at ${new Date(checkInTime).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})}`;
-      updateStats();
-    }, 1000);
-  }
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-  function stopWorkTimer() {
-    clearInterval(timerInterval);
-    document.getElementById('timerCard').classList.remove('show');
-    updateStats();
-  }
+// ============================================================
+// STATE
+// ============================================================
+let allOrders = [];
+let allTickets = [];
+let activeAgent = 'all';   // 'all' or agent key
+let activeSection = 'dashboard';
+let refreshTimer;
+let countdown = 60;
 
-  // STATS
-  function calcTotal(cat) {
-    const arr = stamps[cat]; let total = 0;
-    for (let i = 0; i+1 < arr.length; i += 2) {
-      if (arr[i].type===cat+' Start' && arr[i+1]?.type===cat+' End')
-        total += arr[i+1].ts - arr[i].ts;
-    }
-    return total;
-  }
-  function updateStats() {
-    if (!checkInTime) return;
-    const workMs = checkOutTime ? checkOutTime-checkInTime : Date.now()-checkInTime;
-    document.getElementById('statWork').textContent   = fmtMs(workMs);
-    document.getElementById('statBreak').textContent  = fmtMs(calcTotal('Break'));
-    document.getElementById('statLunch').textContent  = fmtMs(calcTotal('Lunch'));
-    document.getElementById('statDinner').textContent = fmtMs(calcTotal('Dinner'));
-  }
+// ============================================================
+// INIT
+// ============================================================
+document.addEventListener('DOMContentLoaded', () => {
+  // Set date picker to today
+  const today = new Date();
+  document.getElementById('datePicker').value = today.toISOString().slice(0,10);
+  document.getElementById('datePicker').addEventListener('change', () => render());
 
-  // REMINDER
-  function startReminder() {
-    if (reminderTimer) clearTimeout(reminderTimer);
-    reminderTimer = setTimeout(() => {
-      if (!checkOutTime) showReminder();
-    }, 8*60*60*1000);
-  }
-  function showReminder() {
-    document.getElementById('reminderBanner').classList.add('show');
-    if ('Notification' in window && Notification.permission==='granted')
-      new Notification('CozyCorne Patios',{body:"⚠️ You haven't checked out! It's been 8+ hours."});
-  }
-  function hideReminder() {
-    document.getElementById('reminderBanner').classList.remove('show');
-    if (reminderTimer) clearTimeout(reminderTimer);
-  }
-  if ('Notification' in window && Notification.permission==='default')
-    Notification.requestPermission();
+  buildAgentBar();
+  loadAllData();
+  startAutoRefresh();
+});
 
-  // LOAD SAVED EMPLOYEE DETAILS
-  window.addEventListener('DOMContentLoaded', () => {
-    const s = JSON.parse(localStorage.getItem('attendx_emp') || '{}');
-    if (s.name) document.getElementById('empName').value = s.name;
-    if (s.id)   document.getElementById('empId').value   = s.id;
-    if (s.dept) document.getElementById('empDept').value = s.dept;
+// ============================================================
+// AGENT BAR
+// ============================================================
+function buildAgentBar() {
+  const bar = document.getElementById('agentBar');
+
+  // "All" tab
+  const allBtn = document.createElement('button');
+  allBtn.className = 'agent-tab active';
+  allBtn.dataset.agent = 'all';
+  allBtn.innerHTML = '<span class="dot green"></span> All Agents';
+  allBtn.onclick = () => switchAgent('all');
+  bar.appendChild(allBtn);
+
+  // Per-agent tabs
+  AGENTS.forEach(a => {
+    const btn = document.createElement('button');
+    btn.className = 'agent-tab';
+    btn.dataset.agent = a.key;
+    btn.innerHTML = `<span class="dot ${a.dot}"></span> ${a.name}`;
+    btn.onclick = () => switchAgent(a.key);
+    bar.appendChild(btn);
   });
 
-  function saveDetails() {
-    localStorage.setItem('attendx_emp', JSON.stringify({
-      name: document.getElementById('empName').value.trim(),
-      id:   document.getElementById('empId').value.trim(),
-      dept: document.getElementById('empDept').value
-    }));
-  }
+  // Unassigned tab
+  const unBtn = document.createElement('button');
+  unBtn.className = 'agent-tab';
+  unBtn.dataset.agent = 'unassigned';
+  unBtn.innerHTML = '<span class="dot orange"></span> Unassigned';
+  unBtn.onclick = () => switchAgent('unassigned');
+  bar.appendChild(unBtn);
+}
 
-  function clearDetails() {
-    localStorage.removeItem('attendx_emp');
-    ['empName','empId'].forEach(id=>document.getElementById(id).value='');
-    document.getElementById('empDept').value='';
-    setStatus('idle','Details cleared — please enter again');
-  }
+function switchAgent(agentKey) {
+  activeAgent = agentKey;
+  document.querySelectorAll('.agent-tab').forEach(b => b.classList.toggle('active', b.dataset.agent === agentKey));
+  render();
+}
 
-  // STATUS
-  function setStatus(type, msg) {
-    document.getElementById('statusBar').className = 'status-bar status-'+type;
-    document.getElementById('statusText').textContent = msg;
-  }
+function switchSection(secKey) {
+  activeSection = secKey;
+  document.querySelectorAll('.section-tab').forEach(b => b.classList.toggle('active', b.dataset.sec === secKey));
+  render();
+}
 
-  // GPS
-  function getLocation() {
-    return new Promise(resolve => {
-      if (!navigator.geolocation) { resolve({lat:'N/A',lng:'N/A',label:'GPS not supported'}); return; }
-      setStatus('loading','📍 Getting your GPS location...');
-      navigator.geolocation.getCurrentPosition(
-        p => resolve({lat:p.coords.latitude.toFixed(6),lng:p.coords.longitude.toFixed(6),
-                      label:`${p.coords.latitude.toFixed(4)}, ${p.coords.longitude.toFixed(4)}`}),
-        () => resolve({lat:'Denied',lng:'Denied',label:'Location access denied'}),
-        {timeout:10000}
-      );
+// ============================================================
+// DATA
+// ============================================================
+async function loadAllData() {
+  try {
+    const [ordersRes, ticketsRes] = await Promise.all([
+      sb.from('orders').select('*'),
+      sb.from('tickets').select('*'),
+    ]);
+    allOrders = ordersRes.data || [];
+    allTickets = ticketsRes.data || [];
+
+    document.getElementById('syncText').textContent = `${allOrders.length} orders · ${allTickets.length} tickets — synced ${new Date().toLocaleTimeString()}`;
+    document.getElementById('mainLoading').style.display = 'none';
+    document.getElementById('mainContent').style.display = 'block';
+    render();
+  } catch (e) {
+    console.error('Load error:', e);
+    document.getElementById('syncText').textContent = 'Sync error — check console';
+  }
+}
+
+function startAutoRefresh() {
+  countdown = 60;
+  clearInterval(refreshTimer);
+  refreshTimer = setInterval(async () => {
+    countdown--;
+    if (countdown <= 0) {
+      countdown = 60;
+      await loadAllData();
+    }
+  }, 1000);
+}
+
+// ============================================================
+// FILTER HELPERS
+// ============================================================
+function getSelectedDate() {
+  return document.getElementById('datePicker').value || new Date().toISOString().slice(0,10);
+}
+
+function filterOrders(agentKey) {
+  if (agentKey === 'all') return allOrders;
+  if (agentKey === 'unassigned') return allOrders.filter(o => !o.assigned_to || o.assigned_to.trim() === '' || o.assigned_to === '[]');
+  const agent = AGENTS.find(a => a.key === agentKey);
+  if (!agent) return [];
+  return allOrders.filter(o => (o.assigned_to || '').toLowerCase().includes(agent.email.toLowerCase()));
+}
+
+function filterTickets(agentKey) {
+  if (agentKey === 'all') return allTickets;
+  if (agentKey === 'unassigned') return allTickets.filter(t => !t.assignee_email && !t.assignee);
+  const agent = AGENTS.find(a => a.key === agentKey);
+  if (!agent) return [];
+  return allTickets.filter(t => {
+    const ae = (t.assignee_email || t.assignee || '').toLowerCase();
+    return ae.includes(agent.key) || ae.includes(agent.email.toLowerCase());
+  });
+}
+
+function daysAgo(dateStr) {
+  if (!dateStr) return 999;
+  return Math.floor((new Date() - new Date(dateStr)) / 86400000);
+}
+
+function ageBadge(days) {
+  if (days <= 1) return `<span class="age-badge age-ok">${days}d</span>`;
+  if (days <= 3) return `<span class="age-badge age-warn">${days}d</span>`;
+  return `<span class="age-badge age-danger">${days}d</span>`;
+}
+
+function statusBadge(status) {
+  const s = STATUS_MAP[status] || { cls: 's-hold' };
+  return `<span class="status-badge ${s.cls}">${status || '—'}</span>`;
+}
+
+function erpLink(orderName) {
+  if (!orderName) return '—';
+  const encoded = encodeURIComponent(`["like","%${orderName}%"]`);
+  return `<a href="${ERP_BASE}/app/work-order?custom_work_order_name=${encoded}" target="_blank" rel="noopener">${orderName}</a>`;
+}
+
+function zdLink(id) { return `${ZENDESK_BASE}/agent/tickets/${id}`; }
+
+function last7Days() {
+  const days = [];
+  for (let i = 6; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i); days.push(d.toISOString().slice(0,10)); }
+  return days;
+}
+
+function shortDay(ds) { return new Date(ds+'T12:00:00').toLocaleDateString('en-US',{weekday:'short'}); }
+
+// ============================================================
+// MASTER RENDER
+// ============================================================
+function render() {
+  const container = document.getElementById('dynamicContent');
+  const orders = filterOrders(activeAgent);
+  const tickets = filterTickets(activeAgent);
+  const selectedDate = getSelectedDate();
+  const agentLabel = activeAgent === 'all' ? 'All Agents' : activeAgent === 'unassigned' ? 'Unassigned' : AGENTS.find(a=>a.key===activeAgent)?.name || '';
+
+  if (activeSection === 'dashboard') {
+    renderDashboard(container, orders, tickets, selectedDate, agentLabel);
+  } else if (activeSection === 'team-total') {
+    renderTeamTotal(container, orders, tickets, selectedDate, agentLabel);
+  } else if (activeSection === 'performance') {
+    renderPerformance(container, orders, tickets, selectedDate, agentLabel);
+  }
+}
+
+// ============================================================
+// SECTION: DASHBOARD
+// ============================================================
+function renderDashboard(el, orders, tickets, date, label) {
+  // Status counts
+  const sc = {};
+  orders.forEach(o => { const s = o.ops_status || 'NEW'; sc[s] = (sc[s]||0)+1; });
+  const newCount = sc['NEW']||0;
+  const workedToday = orders.filter(o => o.ops_status!=='NEW' && (o.ops_status_updated_at||'').slice(0,10)===date).length;
+  const sod = newCount + workedToday;
+  const openTix = tickets.filter(t => !['solved','closed'].includes((t.status||'').toLowerCase())).length;
+  const rushCount = orders.filter(o => o.is_rush).length;
+
+  let html = '';
+
+  // KPI row
+  html += `<div class="kpi-row">
+    <div class="kpi teal"><div class="kpi-label">Total Orders</div><div class="kpi-val">${orders.length}</div></div>
+    <div class="kpi blue"><div class="kpi-label">SOD (New)</div><div class="kpi-val">${sod}</div></div>
+    <div class="kpi green"><div class="kpi-label">Worked</div><div class="kpi-val">${workedToday}</div><div class="kpi-sub">${date}</div></div>
+    <div class="kpi amber"><div class="kpi-label">Remaining</div><div class="kpi-val">${newCount}</div></div>
+    <div class="kpi red"><div class="kpi-label">Failed / Review</div><div class="kpi-val">${(sc['FAILED']||0)+(sc['OPS REVIEW']||0)}</div></div>
+    <div class="kpi purple"><div class="kpi-label">Open Tickets</div><div class="kpi-val">${openTix}</div></div>
+  </div>`;
+
+  // Pipeline
+  html += `<div class="section"><div class="section-title">Order Pipeline — ${label}</div><div class="pipeline">`;
+  PIPELINE_ORDER.forEach(s => {
+    const m = STATUS_MAP[s];
+    html += `<div class="pipe-stage ${m.pipeCls}"><div class="pipe-count">${sc[s]||0}</div><div class="pipe-label">${m.label}</div></div>`;
+  });
+  html += `</div></div>`;
+
+  // Agent cards (only on All view)
+  if (activeAgent === 'all') {
+    html += `<div class="section"><div class="section-title">Agent Performance — ${date}</div><div class="sod-grid">`;
+    AGENTS.forEach(a => {
+      const ao = filterOrders(a.key);
+      const an = ao.filter(o => o.ops_status==='NEW').length;
+      const aw = ao.filter(o => o.ops_status!=='NEW' && (o.ops_status_updated_at||'').slice(0,10)===date).length;
+      html += `<div class="agent-card" onclick="switchAgent('${a.key}')">
+        <div class="name"><span class="dot" style="background:var(--${a.dot})"></span>${a.name}</div>
+        <div class="stats">
+          <div class="stat sod"><div class="stat-val">${an+aw}</div><div class="stat-lbl">SOD</div></div>
+          <div class="stat worked"><div class="stat-val">${aw}</div><div class="stat-lbl">Worked</div></div>
+          <div class="stat remaining"><div class="stat-val">${an}</div><div class="stat-lbl">Remaining</div></div>
+        </div>
+      </div>`;
     });
+    html += `</div></div>`;
   }
 
-  // VALIDATE
-  function validate() {
-    const name=document.getElementById('empName').value.trim();
-    const id=document.getElementById('empId').value.trim();
-    const dept=document.getElementById('empDept').value;
-    if (!name) { setStatus('error','⚠️ Please enter your full name'); return false; }
-    if (!id)   { setStatus('error','⚠️ Please enter your Employee ID'); return false; }
-    if (!dept) { setStatus('error','⚠️ Please select your department'); return false; }
-    return {name,id,dept};
-  }
+  // 7-day trend
+  html += `<div class="section"><div class="section-title">${label} — 7-Day Trend</div>
+    <div class="chart-container" id="chartArea"></div>
+    <div class="chart-legend"><span class="l-worked">Worked</span><span class="l-new">New Incoming</span></div>
+  </div>`;
 
-  // SEND TO GOOGLE SHEETS
-  async function sendToSheets(data) {
-    if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL === "YOUR_APPS_SCRIPT_URL_HERE")
-      return {ok:false, msg:'Script URL not set'};
-    try {
-      await fetch(APPS_SCRIPT_URL,{method:'POST',mode:'no-cors',
-        headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
-      return {ok:true};
-    } catch(e) { return {ok:false,msg:'Network error'}; }
-  }
+  // Order table
+  const sortedOrders = [...orders].sort((a,b) => {
+    if(a.ops_status==='NEW' && b.ops_status!=='NEW') return -1;
+    if(a.ops_status!=='NEW' && b.ops_status==='NEW') return 1;
+    return daysAgo(b.creation||b.created_at) - daysAgo(a.creation||a.created_at);
+  });
+  html += `<div class="section"><div class="section-title">${label} — Order Queue
+    <span class="badge" style="background:var(--accent-dim);color:var(--accent)">${orders.length}</span></div>
+    <div class="tbl-wrap" style="max-height:420px;overflow-y:auto"><table>
+    <thead><tr><th>Order #</th><th>Status</th><th>Agent</th><th>Age</th><th>Updated</th></tr></thead><tbody>`;
+  sortedOrders.slice(0,80).forEach(o => {
+    const age = daysAgo(o.creation || o.created_at);
+    const updated = o.ops_status_updated_at ? new Date(o.ops_status_updated_at).toLocaleDateString() : '—';
+    const assignedAgent = AGENTS.find(a => (o.assigned_to||'').toLowerCase().includes(a.email))?.name || '—';
+    html += `<tr><td>${erpLink(o.work_order_name||o.name)}</td><td>${statusBadge(o.ops_status||'NEW')}</td><td>${assignedAgent}</td><td>${ageBadge(age)}</td><td>${updated}</td></tr>`;
+  });
+  if(!sortedOrders.length) html += '<tr><td colspan="5" class="empty">No orders</td></tr>';
+  html += `</tbody></table></div></div>`;
 
-  // BADGE MAP
-  const badgeMap = {
-    'Check-In':    ['in',    'IN'],    'Check-Out':   ['out',   'OUT'],
-    'Break Start': ['break', '☕ START'],'Break End':  ['break', '☕ END'],
-    'Lunch Start': ['lunch', '🍱 START'],'Lunch End':  ['lunch', '🍱 END'],
-    'Dinner Start':['dinner','🍽️ START'],'Dinner End': ['dinner','🍽️ END'],
-  };
+  // Zendesk tickets
+  const openTickets = tickets.filter(t => !['solved','closed'].includes((t.status||'').toLowerCase()))
+    .sort((a,b) => {const p={urgent:0,high:1,normal:2,low:3}; return (p[a.priority]||2)-(p[b.priority]||2);});
+  html += `<div class="section"><div class="section-title">${label} — Zendesk Tickets
+    <span class="badge" style="background:var(--accent-dim);color:var(--accent)">${openTickets.length}</span></div>
+    <div class="ticket-cards">`;
+  openTickets.slice(0,30).forEach(t => {
+    const pCls = t.priority==='urgent'?'t-urgent':t.priority==='high'?'t-high':'';
+    html += `<div class="ticket-card ${pCls}">
+      <div class="t-subj"><a href="${zdLink(t.ticket_id||t.id)}" target="_blank">#${t.ticket_id||t.id}</a> ${t.subject||'—'}</div>
+      <div class="t-meta"><span>${t.status||'—'}</span><span>${t.priority||'normal'}</span><span>${t.assignee||'—'}</span></div>
+    </div>`;
+  });
+  if(!openTickets.length) html += '<div class="empty">No open tickets</div>';
+  html += `</div></div>`;
 
-  // ADD LOG ITEM
-  function addLog(data, durLabel) {
-    const list = document.getElementById('logList');
-    const empty = list.querySelector('.empty-log');
-    if (empty) empty.remove();
-    logCount++;
-    document.getElementById('logCount').textContent =
-      `${logCount} entr${logCount===1?'y':'ies'}`;
-    const [bc,bl] = badgeMap[data.type] || ['in',data.type];
-    const li = document.createElement('li');
-    li.className = 'log-item';
-    li.innerHTML = `
-      <div>
-        <div class="log-name">${data.name} <span style="color:var(--muted);font-weight:400">(${data.id})</span></div>
-        <div class="log-time">${data.dept} • ${data.time}</div>
-        ${durLabel ? `<div class="log-dur">⏱ ${durLabel}</div>` : ''}
+  el.innerHTML = html;
+
+  // Render chart after DOM update
+  setTimeout(() => renderChart('chartArea', orders, date), 0);
+}
+
+// ============================================================
+// SECTION: TEAM TOTAL
+// ============================================================
+function renderTeamTotal(el, orders, tickets, date, label) {
+  let html = `<div class="section"><div class="section-title">Team Total — ${label}</div>
+    <p style="color:var(--tx3);font-size:.85rem;padding:20px 0">Team Total view coming soon. Switch agents above to see individual breakdowns, or use Dashboard tab for the overview.</p>
+  </div>`;
+  el.innerHTML = html;
+}
+
+// ============================================================
+// SECTION: PERFORMANCE
+// ============================================================
+function renderPerformance(el, orders, tickets, date, label) {
+  let html = `<div class="section"><div class="section-title">Performance — ${label}</div>
+    <p style="color:var(--tx3);font-size:.85rem;padding:20px 0">Performance analytics coming soon. This will include weekly/monthly trends, throughput rates, and SLA tracking.</p>
+  </div>`;
+  el.innerHTML = html;
+}
+
+// ============================================================
+// CHART RENDERER
+// ============================================================
+function renderChart(containerId, orders, selectedDate) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const days = last7Days();
+  const worked = days.map(d => orders.filter(o => o.ops_status!=='NEW' && (o.ops_status_updated_at||'').slice(0,10)===d).length);
+  const incoming = days.map(d => orders.filter(o => (o.creation||o.created_at||'').slice(0,10)===d).length);
+  const maxVal = Math.max(...worked, ...incoming, 1);
+
+  container.innerHTML = days.map((d,i) => {
+    const wH = Math.max(2, (worked[i]/maxVal)*160);
+    const nH = Math.max(2, (incoming[i]/maxVal)*160);
+    const isToday = d === selectedDate;
+    return `<div class="chart-bar-group">
+      <div style="display:flex;gap:3px;align-items:flex-end;width:100%;height:170px">
+        <div class="chart-bar" style="height:${wH}px;background:var(--accent);flex:1;opacity:${isToday?1:.65}"><span class="tip">${worked[i]} worked</span></div>
+        <div class="chart-bar" style="height:${nH}px;background:var(--blue);flex:1;opacity:${isToday?1:.45}"><span class="tip">${incoming[i]} new</span></div>
       </div>
-      <div class="badge badge-${bc}">${bl}</div>`;
-    list.prepend(li);
-  }
-
-  function setAllButtons(d) { document.querySelectorAll('.btn').forEach(b=>b.disabled=d); }
-
-  // MAIN: MARK ATTENDANCE
-  async function markAttendance(type) {
-    const emp = validate();
-    if (!emp) return;
-    saveDetails();
-    setAllButtons(true);
-
-    const location = await getLocation();
-    const now   = new Date();
-    const tsNow = now.getTime();
-    const date  = now.toLocaleDateString('en-IN');
-    const time  = now.toLocaleTimeString('en-IN');
-    let durLabel = null;
-
-    if (type==='Check-In')  { checkInTime=tsNow; checkOutTime=null; hideReminder(); startWorkTimer(); startReminder(); }
-    if (type==='Check-Out') { checkOutTime=tsNow; stopWorkTimer(); hideReminder(); if(checkInTime) durLabel=`Total Work: ${fmtMs(checkOutTime-checkInTime)}`; }
-
-    ['Break','Lunch','Dinner'].forEach(cat => {
-      if (type===cat+' Start') stamps[cat].push({type,ts:tsNow});
-      if (type===cat+' End') {
-        stamps[cat].push({type,ts:tsNow});
-        for (let i=stamps[cat].length-1;i>=0;i--) {
-          if (stamps[cat][i].type===cat+' Start') { durLabel=fmtMs(tsNow-stamps[cat][i].ts); break; }
-        }
-      }
-    });
-
-    const data = {name:emp.name,id:emp.id,department:emp.dept,type,date,time,latitude:location.lat,longitude:location.lng};
-
-    document.getElementById('locationText').textContent = location.label;
-    document.getElementById('locationBox').classList.add('visible');
-
-    setStatus('loading','⏳ Saving to Google Sheets...');
-    const result = await sendToSheets(data);
-    setStatus('success', result.ok
-      ? `✅ ${type} recorded at ${time}`
-      : `✅ ${type} at ${time} (saved locally)`);
-
-    addLog({...data,time}, durLabel);
-    updateStats();
-    setAllButtons(false);
-  }
+      <div class="chart-label" style="${isToday?'color:var(--accent);font-weight:600':''}">${shortDay(d)}</div>
+    </div>`;
+  }).join('');
+}
 </script>
 </body>
 </html>
