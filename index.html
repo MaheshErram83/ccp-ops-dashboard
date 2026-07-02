@@ -92,22 +92,7 @@ a:hover{text-decoration:underline}
 .agent-tab .dot.red{background:#ef4444}
 .agent-tab .dot.teal{background:#2dd4bf}
 
-/* Section tabs (Team Total / Dashboard / Performance) */
-.section-bar{
-  background:var(--bg);border-bottom:1px solid var(--border);
-  padding:0 20px;display:flex;align-items:stretch;gap:0;
-}
-.section-tab{
-  display:flex;align-items:center;gap:6px;
-  padding:10px 16px;border:none;background:transparent;
-  color:var(--tx3);font-size:.78rem;font-weight:500;
-  cursor:pointer;white-space:nowrap;
-  border-bottom:2px solid transparent;
-  transition:all .15s;font-family:var(--font);
-}
-.section-tab:hover{color:var(--tx2)}
-.section-tab.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
-.section-tab .sec-icon{font-size:.85rem}
+
 
 /* ===== MAIN CONTENT ===== */
 .shell{max-width:1400px;margin:0 auto;padding:16px 20px 40px}
@@ -243,18 +228,7 @@ tr:hover td{background:var(--bg3)}
   <!-- Injected by JS -->
 </div>
 
-<!-- ===== SECTION TAB BAR ===== -->
-<div class="section-bar" id="sectionBar">
-  <button class="section-tab active" data-sec="dashboard" onclick="switchSection('dashboard')">
-    <span class="sec-icon">⚡</span> Dashboard
-  </button>
-  <button class="section-tab" data-sec="team-total" onclick="switchSection('team-total')">
-    <span class="sec-icon">📊</span> Team Total
-  </button>
-  <button class="section-tab" data-sec="performance" onclick="switchSection('performance')">
-    <span class="sec-icon">📈</span> Performance
-  </button>
-</div>
+
 
 <!-- ===== MAIN CONTENT ===== -->
 <div class="shell">
@@ -352,17 +326,39 @@ function buildAgentBar() {
   unBtn.innerHTML = '<span class="dot orange"></span> Unassigned';
   unBtn.onclick = () => switchAgent('unassigned');
   bar.appendChild(unBtn);
+
+  // Divider
+  const divider = document.createElement('div');
+  divider.style.cssText = 'width:1px;background:var(--border);margin:6px 4px;flex-shrink:0';
+  bar.appendChild(divider);
+
+  // Section tabs: Dashboard, Team Total, Performance
+  const sections = [
+    { key: 'dashboard',   icon: '⚡', label: 'Dashboard' },
+    { key: 'team-total',  icon: '📊', label: 'Team Total' },
+    { key: 'performance', icon: '📈', label: 'Performance' },
+  ];
+  sections.forEach(s => {
+    const btn = document.createElement('button');
+    btn.className = 'agent-tab' + (s.key === 'dashboard' ? ' active' : '');
+    btn.dataset.section = s.key;
+    btn.innerHTML = `${s.icon} ${s.label}`;
+    btn.onclick = () => switchSection(s.key);
+    bar.appendChild(btn);
+  });
 }
 
 function switchAgent(agentKey) {
   activeAgent = agentKey;
-  document.querySelectorAll('.agent-tab').forEach(b => b.classList.toggle('active', b.dataset.agent === agentKey));
+  // Highlight agent tabs (those with data-agent)
+  document.querySelectorAll('.agent-tab[data-agent]').forEach(b => b.classList.toggle('active', b.dataset.agent === agentKey));
   render();
 }
 
 function switchSection(secKey) {
   activeSection = secKey;
-  document.querySelectorAll('.section-tab').forEach(b => b.classList.toggle('active', b.dataset.sec === secKey));
+  // Highlight section tabs (those with data-section)
+  document.querySelectorAll('.agent-tab[data-section]').forEach(b => b.classList.toggle('active', b.dataset.section === secKey));
   render();
 }
 
