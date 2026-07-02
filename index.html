@@ -1,376 +1,522 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CCP Operations Dashboard</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Inter',sans-serif;background:#F1F5F9;color:#1E293B;min-height:100vh}
-.topbar{background:#0F172A;color:#fff;padding:12px 20px;display:flex;align-items:center;justify-content:space-between}
-.topbar-left{display:flex;align-items:center;gap:10px}
-.logo{background:#065A82;padding:4px 10px;border-radius:4px;font-weight:600;font-size:13px;letter-spacing:0.5px}
-.topbar h1{font-size:16px;font-weight:500}
-.topbar-right{display:flex;align-items:center;gap:12px;font-size:12px}
-.sync-badge{color:#94A3B8;font-size:11px}
-.sync-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#22C55E;margin-right:4px;vertical-align:middle}
-.btn-refresh{background:rgba(255,255,255,0.1);border:none;color:#fff;padding:5px 14px;border-radius:4px;font-size:12px;cursor:pointer;font-family:inherit}
-.btn-refresh:hover{background:rgba(255,255,255,0.2)}
-.container{max-width:1100px;margin:0 auto;padding:16px}
-.mod{background:#fff;border-radius:8px;border:1px solid #E2E8F0;padding:14px;margin-bottom:12px;box-shadow:0 1px 2px rgba(0,0,0,0.04)}
-.mod-title{font-size:13px;font-weight:600;margin:0 0 10px;color:#334155;text-transform:uppercase;letter-spacing:0.3px}
-/* Pipeline Cards */
-.pipe-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
-.pipe-card{padding:14px 10px;border-radius:8px;text-align:center}
-.pipe-count{font-size:28px;font-weight:700;line-height:1.1}
-.pipe-label{font-size:11px;font-weight:600;margin-top:4px;text-transform:uppercase;letter-spacing:0.3px}
-.p-new{background:#DBEAFE;color:#1E40AF}
-.p-pend{background:#FEF3C7;color:#B45309}
-.p-appr{background:#D1FAE5;color:#047857}
-.p-rev{background:#EDE9FE;color:#6D28D9}
-.p-fail{background:#FEE2E2;color:#B91C1C}
-/* Two column layout */
-.two-col{display:grid;grid-template-columns:1.6fr 1fr;gap:12px}
-/* Queue Table */
-.qtbl{width:100%;border-collapse:collapse;font-size:12px}
-.qtbl th{background:#F8FAFC;padding:8px 10px;text-align:left;font-size:11px;font-weight:600;color:#64748B;text-transform:uppercase;letter-spacing:0.3px;border-bottom:1px solid #E2E8F0}
-.qtbl td{padding:8px 10px;border-bottom:1px solid #F1F5F9}
-.qtbl tr:hover{background:#F8FAFC}
-.q-link{color:#065A82;text-decoration:none;font-weight:600}
-.q-link:hover{text-decoration:underline}
-.days-badge{display:inline-block;min-width:26px;text-align:center;padding:2px 8px;border-radius:10px;font-weight:600;font-size:11px}
-.db-green{background:#A7F3D0;color:#065F46}
-.db-yellow{background:#FDE68A;color:#92400E}
-.db-red{background:#FECACA;color:#991B1B}
-.row-red{background:#FFF5F5}
-.row-yellow{background:#FFFBEB}
-.row-green{background:#F0FDF4}
-/* Ticket Cards */
-.ticket-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-.tc{padding:14px 10px;border-radius:8px;text-align:center}
-.tc-count{font-size:26px;font-weight:700;line-height:1.1}
-.tc-label{font-size:11px;font-weight:600;margin-top:4px;text-transform:uppercase}
-.tc-open{background:#FEE2E2;color:#B91C1C}
-.tc-pend{background:#FEF3C7;color:#B45309}
-.tc-solved{background:#D1FAE5;color:#047857}
-.ticket-total{text-align:center;font-size:12px;color:#64748B;margin-top:10px;padding-top:10px;border-top:1px solid #E2E8F0}
-.ticket-total span{font-weight:600;color:#1E293B}
-/* Comm Cards */
-.comm-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
-.cc{padding:12px 8px;border-radius:8px;text-align:center;background:#F8FAFC;border:1px solid #E2E8F0}
-.cc-count{font-size:26px;font-weight:700;line-height:1.1}
-.cc-label{font-size:11px;font-weight:600;margin-top:4px;text-transform:uppercase}
-.cc-total .cc-count{color:#1E40AF}
-.cc-ack .cc-count{color:#047857}
-.cc-miss .cc-count{color:#B91C1C}
-.cc-pend .cc-count{color:#B45309}
-/* Alerts */
-.alerts{display:flex;flex-wrap:wrap;gap:8px}
-.alert{display:flex;align-items:center;gap:6px;padding:8px 14px;border-radius:8px;font-size:12px;font-weight:600}
-.a-rush{background:#FEE2E2;color:#991B1B}
-.a-aged{background:#FEF3C7;color:#92400E}
-.a-miss{background:#FEE2E2;color:#991B1B}
-.a-clear{background:#D1FAE5;color:#065F46}
-/* Agent SOD Table */
-.sod-tbl{width:100%;border-collapse:collapse;font-size:13px}
-.sod-tbl th{background:#F8FAFC;padding:10px 12px;text-align:left;font-size:11px;font-weight:600;color:#64748B;text-transform:uppercase;letter-spacing:0.3px;border-bottom:2px solid #E2E8F0}
-.sod-tbl th.num{text-align:right}
-.sod-tbl td{padding:10px 12px;border-bottom:1px solid #F1F5F9}
-.sod-tbl td.num{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
-.sod-tbl tr:hover{background:#F8FAFC}
-.sod-tbl .total-row{background:#EFF6FF;font-weight:700}
-.sod-tbl .total-row td{border-top:2px solid #3B82F6;color:#1E293B}
-.agent-name{font-weight:600;color:#1E293B}
-.worked-val{color:#047857}
-/* Trend Chart */
-.trend-row{display:flex;align-items:flex-end;gap:6px;height:100px;padding:8px 0}
-.trend-grp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px}
-.trend-bars{display:flex;gap:2px;align-items:flex-end;height:80px}
-.trend-bar{width:16px;border-radius:3px 3px 0 0;min-height:3px}
-.tb-new{background:#93C5FD}
-.tb-pend{background:#FCD34D}
-.tb-appr{background:#6EE7B7}
-.trend-date{font-size:10px;color:#94A3B8}
-.trend-legend{display:flex;gap:14px;justify-content:center;margin-top:8px}
-.trend-legend-item{display:flex;align-items:center;gap:5px;font-size:11px;color:#64748B}
-.legend-dot{width:10px;height:10px;border-radius:2px}
-/* Footer */
-.footer{text-align:center;padding:12px;font-size:11px;color:#94A3B8;margin-top:4px}
-.loading{text-align:center;padding:40px;color:#94A3B8;font-size:14px}
-.error-msg{background:#FEF2F2;border:1px solid #FECACA;color:#991B1B;padding:10px 16px;border-radius:8px;font-size:13px;margin-bottom:12px}
-@media(max-width:768px){
-  .pipe-grid{grid-template-columns:repeat(3,1fr)}
-  .two-col{grid-template-columns:1fr}
-  .comm-grid{grid-template-columns:repeat(2,1fr)}
-  .container{padding:10px}
-}
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>CozyCorne Patios — Attendance</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg: #0b0f1a; --card: #111827; --border: #1e2a3a;
+      --accent: #00e5ff; --accent2: #7c3aed;
+      --green: #22c55e; --red: #ef4444;
+      --yellow: #fbbf24; --orange: #fb923c; --purple: #c084fc;
+      --text: #f1f5f9; --muted: #64748b; --radius: 16px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text);
+      min-height: 100vh; display: flex; flex-direction: column; align-items: center;
+      padding: 24px 16px 80px;
+      background-image:
+        radial-gradient(ellipse at 20% 0%, rgba(124,58,237,0.15) 0%, transparent 60%),
+        radial-gradient(ellipse at 80% 100%, rgba(0,229,255,0.1) 0%, transparent 60%);
+    }
+
+    /* HEADER */
+    header {
+      width: 100%; max-width: 480px; display: flex; justify-content: space-between;
+      align-items: center; margin-bottom: 20px; padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .logo {
+      font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 800;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .live-time { font-size: 12px; color: var(--muted); text-align: right; }
+    .live-time span { display: block; color: var(--text); font-size: 15px; font-weight: 600; }
+
+    /* SHEET LINK BUTTON */
+    .sheet-link {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      width: 100%; max-width: 480px; margin-bottom: 14px;
+      background: rgba(34,197,94,0.08); border: 1px solid rgba(34,197,94,0.25);
+      border-radius: 12px; padding: 13px 16px;
+      color: var(--green); font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700;
+      text-decoration: none; letter-spacing: 0.5px; transition: all 0.2s;
+    }
+    .sheet-link:hover { background: rgba(34,197,94,0.16); transform: translateY(-2px); box-shadow: 0 6px 20px rgba(34,197,94,0.2); }
+
+    /* REMINDER BANNER */
+    #reminderBanner {
+      display: none; width: 100%; max-width: 480px;
+      background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.4);
+      border-radius: 12px; padding: 14px 16px; margin-bottom: 14px;
+      font-size: 13px; color: #f87171; font-weight: 500; gap: 10px;
+      animation: blinkBorder 1.5s infinite;
+    }
+    #reminderBanner.show { display: flex; align-items: center; }
+    @keyframes blinkBorder {
+      0%,100% { border-color: rgba(239,68,68,0.4); }
+      50%      { border-color: rgba(239,68,68,0.9); }
+    }
+
+    /* LIVE TIMER CARD */
+    .timer-card {
+      width: 100%; max-width: 480px; margin-bottom: 14px;
+      background: linear-gradient(135deg, rgba(0,229,255,0.07), rgba(124,58,237,0.07));
+      border: 1px solid rgba(0,229,255,0.2); border-radius: var(--radius);
+      padding: 20px 24px; display: none;
+    }
+    .timer-card.show { display: block; }
+    .timer-label { font-family: 'Syne', sans-serif; font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); margin-bottom: 6px; }
+    .timer-value { font-family: 'Syne', sans-serif; font-size: 40px; font-weight: 800; letter-spacing: -2px; color: var(--accent); line-height: 1; }
+    .timer-sub { font-size: 12px; color: var(--muted); margin-top: 6px; }
+
+    /* STATS GRID */
+    .stats-grid {
+      width: 100%; max-width: 480px;
+      display: none; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px;
+    }
+    .stat-box { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px; }
+    .stat-icon { font-size: 18px; margin-bottom: 6px; }
+    .stat-val { font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 800; }
+    .stat-lbl { font-size: 10px; color: var(--muted); margin-top: 3px; text-transform: uppercase; letter-spacing: 0.8px; }
+    .stat-work   .stat-val { color: var(--green); }
+    .stat-break  .stat-val { color: var(--yellow); }
+    .stat-lunch  .stat-val { color: var(--orange); }
+    .stat-dinner .stat-val { color: var(--purple); }
+
+    /* CARD */
+    .card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 22px;
+      width: 100%; max-width: 480px; margin-bottom: 14px;
+    }
+    .card-title {
+      font-family: 'Syne', sans-serif; font-size: 12px; text-transform: uppercase;
+      letter-spacing: 1.5px; color: var(--muted); margin-bottom: 14px;
+    }
+    label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 5px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.8px; }
+    input, select {
+      width: 100%; background: var(--bg); border: 1px solid var(--border);
+      border-radius: 10px; color: var(--text); font-family: 'DM Sans', sans-serif;
+      font-size: 14px; padding: 11px 13px; margin-bottom: 13px; outline: none; transition: border 0.2s;
+    }
+    input:focus, select:focus { border-color: var(--accent); }
+    select option { background: var(--card); }
+
+    /* BUTTONS */
+    .btn {
+      width: 100%; padding: 14px; border: none; border-radius: 12px;
+      font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700;
+      letter-spacing: 0.5px; cursor: pointer; transition: all 0.2s;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-checkin  { background: linear-gradient(135deg,#22c55e,#16a34a); color:#fff; margin-bottom:10px; }
+    .btn-checkin:hover:not(:disabled)  { transform:translateY(-2px); box-shadow:0 8px 24px rgba(34,197,94,0.35); }
+    .btn-checkout { background: linear-gradient(135deg,#ef4444,#dc2626); color:#fff; }
+    .btn-checkout:hover:not(:disabled) { transform:translateY(-2px); box-shadow:0 8px 24px rgba(239,68,68,0.35); }
+    .breaks-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 4px; }
+    .btn-break { padding:12px 8px; font-size:12px; border-radius:12px; width:100%; }
+    .btn-break-start  { background:rgba(251,191,36,0.15); color:#fbbf24; border:1px solid rgba(251,191,36,0.3); }
+    .btn-break-start:hover:not(:disabled)  { background:rgba(251,191,36,0.25); transform:translateY(-2px); }
+    .btn-break-end    { background:rgba(251,191,36,0.07); color:#f59e0b;  border:1px solid rgba(251,191,36,0.15); }
+    .btn-break-end:hover:not(:disabled)    { background:rgba(251,191,36,0.15); transform:translateY(-2px); }
+    .btn-lunch-start  { background:rgba(249,115,22,0.15); color:#fb923c; border:1px solid rgba(249,115,22,0.3); }
+    .btn-lunch-start:hover:not(:disabled)  { background:rgba(249,115,22,0.25); transform:translateY(-2px); }
+    .btn-lunch-end    { background:rgba(249,115,22,0.07); color:#f97316; border:1px solid rgba(249,115,22,0.15); }
+    .btn-lunch-end:hover:not(:disabled)    { background:rgba(249,115,22,0.15); transform:translateY(-2px); }
+    .btn-dinner-start { background:rgba(168,85,247,0.15); color:#c084fc; border:1px solid rgba(168,85,247,0.3); }
+    .btn-dinner-start:hover:not(:disabled) { background:rgba(168,85,247,0.25); transform:translateY(-2px); }
+    .btn-dinner-end   { background:rgba(168,85,247,0.07); color:#a855f7; border:1px solid rgba(168,85,247,0.15); }
+    .btn-dinner-end:hover:not(:disabled)   { background:rgba(168,85,247,0.15); transform:translateY(-2px); }
+    .section-divider { font-family:'Syne',sans-serif; font-size:11px; text-transform:uppercase; letter-spacing:1.5px; color:var(--muted); margin:14px 0 8px; }
+
+    /* STATUS */
+    .status-bar { display:flex; align-items:center; gap:8px; font-size:13px; padding:10px 13px; border-radius:8px; margin-bottom:14px; font-weight:500; }
+    .status-idle    { background:rgba(100,116,139,0.15); color:var(--muted); }
+    .status-success { background:rgba(34,197,94,0.15);   color:var(--green); }
+    .status-error   { background:rgba(239,68,68,0.15);   color:var(--red); }
+    .status-loading { background:rgba(0,229,255,0.1);    color:var(--accent); }
+    .dot { width:8px;height:8px;border-radius:50%;background:currentColor;flex-shrink:0;animation:pulse 1.5s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.3} }
+    .location-box { background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:11px 13px;font-size:12px;color:var(--muted);margin-bottom:13px;display:none; }
+    .location-box.visible { display:block; }
+    .location-box strong { color:var(--accent);display:block;margin-bottom:3px;font-size:10px;text-transform:uppercase;letter-spacing:1px; }
+
+    /* LOG */
+    .log-list { list-style:none; display:flex; flex-direction:column; gap:9px; }
+    .log-item {
+      background:var(--bg); border:1px solid var(--border); border-radius:10px;
+      padding:11px 13px; font-size:13px; display:flex; justify-content:space-between;
+      align-items:center; animation:slideIn 0.3s ease;
+    }
+    @keyframes slideIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+    .log-name { font-weight:600; color:var(--text); }
+    .log-time { color:var(--muted); font-size:11px; margin-top:2px; }
+    .log-dur  { color:var(--accent); font-size:11px; font-weight:600; margin-top:2px; }
+    .badge { font-size:10px;font-weight:700;padding:3px 9px;border-radius:100px;font-family:'Syne',sans-serif;letter-spacing:0.5px;white-space:nowrap; }
+    .badge-in     { background:rgba(34,197,94,0.2);  color:var(--green); }
+    .badge-out    { background:rgba(239,68,68,0.2);  color:var(--red); }
+    .badge-break  { background:rgba(251,191,36,0.2); color:#fbbf24; }
+    .badge-lunch  { background:rgba(249,115,22,0.2); color:#fb923c; }
+    .badge-dinner { background:rgba(168,85,247,0.2); color:#c084fc; }
+    .empty-log { text-align:center; color:var(--muted); font-size:13px; padding:20px 0; }
+  </style>
 </head>
 <body>
-<div class="topbar">
-  <div class="topbar-left">
-    <span class="logo">CCP</span>
-    <h1>Operations Dashboard</h1>
+
+<!-- HEADER -->
+<header>
+  <div>
+    <div class="logo">🪑 CozyCorne Patios</div>
+    <div style="font-size:10px;color:var(--muted);margin-top:3px;letter-spacing:1px;font-family:'Syne',sans-serif;">ATTENDANCE SYSTEM</div>
   </div>
-  <div class="topbar-right">
-    <span class="sync-badge" id="syncInfo">Loading...</span>
-    <button class="btn-refresh" onclick="loadAll()">Refresh</button>
+  <div class="live-time">
+    <span id="clockTime">--:--:--</span>
+    <span id="clockDate">-- -- ----</span>
+  </div>
+</header>
+
+<!-- 📊 VIEW GOOGLE SHEET BUTTON -->
+<a class="sheet-link"
+   href="https://docs.google.com/spreadsheets/d/1XS1JtFBk1FcXbz9VDDAdvAA5lI_1Nzm4rLkFF95vvZQ/edit?gid=0#gid=0"
+   target="_blank">
+  📊 View Attendance Sheet
+</a>
+
+<!-- 🔔 REMINDER BANNER -->
+<div id="reminderBanner">
+  <span style="font-size:22px">🔔</span>
+  <div>
+    <strong style="display:block;margin-bottom:2px;">Don't forget to Check Out!</strong>
+    You've been working over 8 hrs — please check out.
   </div>
 </div>
-<div class="container">
-  <div id="error"></div>
 
-  <!-- Module 1: Order Pipeline -->
-  <div class="mod">
-    <p class="mod-title">Order Pipeline</p>
-    <div class="pipe-grid" id="pipeline">
-      <div class="pipe-card p-new"><div class="pipe-count">—</div><div class="pipe-label">New</div></div>
-      <div class="pipe-card p-pend"><div class="pipe-count">—</div><div class="pipe-label">Conf. Pending</div></div>
-      <div class="pipe-card p-appr"><div class="pipe-count">—</div><div class="pipe-label">Approved</div></div>
-      <div class="pipe-card p-rev"><div class="pipe-count">—</div><div class="pipe-label">Ops Review</div></div>
-      <div class="pipe-card p-fail"><div class="pipe-count">—</div><div class="pipe-label">Failed</div></div>
-    </div>
+<!-- 🕐 LIVE WORK TIMER -->
+<div class="timer-card" id="timerCard">
+  <div class="timer-label">⏱ Time Since Check-In</div>
+  <div class="timer-value" id="timerValue">00:00:00</div>
+  <div class="timer-sub" id="timerSub">Working...</div>
+</div>
+
+<!-- 📊 STATS DASHBOARD -->
+<div class="stats-grid" id="statsGrid">
+  <div class="stat-box stat-work">
+    <div class="stat-icon">💼</div>
+    <div class="stat-val" id="statWork">0m</div>
+    <div class="stat-lbl">Work Time</div>
   </div>
-
-  <div class="two-col">
-    <!-- Module 2: Confirmation Pending Queue -->
-    <div class="mod">
-      <p class="mod-title">Confirmation Pending Queue</p>
-      <div id="pendingQueue"><div class="loading">Loading...</div></div>
-    </div>
-    <!-- Module 3: Zendesk Tickets -->
-    <div class="mod">
-      <p class="mod-title">Zendesk Tickets</p>
-      <div id="ticketCards"><div class="loading">Loading...</div></div>
-    </div>
+  <div class="stat-box stat-break">
+    <div class="stat-icon">☕</div>
+    <div class="stat-val" id="statBreak">0m</div>
+    <div class="stat-lbl">Total Break</div>
   </div>
-
-  <!-- Module 4: Communication Stats -->
-  <div class="mod">
-    <p class="mod-title">Communication Stats</p>
-    <div id="commStats"><div class="loading">Loading...</div></div>
+  <div class="stat-box stat-lunch">
+    <div class="stat-icon">🍱</div>
+    <div class="stat-val" id="statLunch">0m</div>
+    <div class="stat-lbl">Total Lunch</div>
   </div>
-
-  <!-- Module 5: Alerts -->
-  <div class="mod">
-    <p class="mod-title">Alerts</p>
-    <div id="alerts"><div class="loading">Loading...</div></div>
+  <div class="stat-box stat-dinner">
+    <div class="stat-icon">🍽️</div>
+    <div class="stat-val" id="statDinner">0m</div>
+    <div class="stat-lbl">Total Dinner</div>
   </div>
+</div>
 
-  <!-- Agent SOD/Worked/Remaining Table -->
-  <div class="mod">
-    <p class="mod-title">Agent Performance — SOD / EOD Tracker</p>
-    <div id="sodTable"><div class="loading">Loading...</div></div>
+<!-- EMPLOYEE DETAILS -->
+<div class="card">
+  <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
+    Employee Details
+    <button onclick="clearDetails()" style="font-size:11px;background:rgba(239,68,68,0.1);color:#ef4444;border:1px solid rgba(239,68,68,0.2);border-radius:6px;padding:3px 10px;cursor:pointer;font-family:'DM Sans',sans-serif;">✏️ Change</button>
   </div>
+  <label for="empName">Full Name</label>
+  <input type="text" id="empName" placeholder="Enter your full name"/>
+  <label for="empId">Employee ID</label>
+  <input type="text" id="empId" placeholder="e.g. EMP001"/>
+  <label for="empDept">Department</label>
+  <select id="empDept">
+    <option value="">Select Department</option>
+    <option>Operations</option><option>HR</option><option>Finance</option>
+    <option>IT</option><option>Sales</option><option>Admin</option>
+  </select>
+</div>
 
-  <!-- Module 6: 7-Day Trend -->
-  <div class="mod">
-    <p class="mod-title">7-Day Trend</p>
-    <div id="trendChart"><div class="loading">Loading...</div></div>
+<!-- MARK ATTENDANCE -->
+<div class="card">
+  <div class="card-title">Mark Attendance</div>
+  <div id="statusBar" class="status-bar status-idle">
+    <div class="dot"></div>
+    <span id="statusText">Ready to mark attendance</span>
   </div>
+  <div id="locationBox" class="location-box">
+    <strong>📍 GPS Location Captured</strong>
+    <span id="locationText">--</span>
+  </div>
+  <button class="btn btn-checkin"  id="checkInBtn"  onclick="markAttendance('Check-In')">✅ Check In</button>
+  <button class="btn btn-checkout" id="checkOutBtn" onclick="markAttendance('Check-Out')">🚪 Check Out</button>
 
-  <div class="footer">Cozy Corner Patios — Operations Dashboard &middot; Data syncs every 15 minutes</div>
+  <div class="section-divider">☕ Break</div>
+  <div class="breaks-grid">
+    <button class="btn btn-break btn-break-start"  onclick="markAttendance('Break Start')">☕ Break Start</button>
+    <button class="btn btn-break btn-break-end"    onclick="markAttendance('Break End')">↩️ Break End</button>
+  </div>
+  <div class="section-divider">🍱 Lunch</div>
+  <div class="breaks-grid">
+    <button class="btn btn-break btn-lunch-start"  onclick="markAttendance('Lunch Start')">🍱 Lunch Start</button>
+    <button class="btn btn-break btn-lunch-end"    onclick="markAttendance('Lunch End')">↩️ Lunch End</button>
+  </div>
+  <div class="section-divider">🍽️ Dinner</div>
+  <div class="breaks-grid">
+    <button class="btn btn-break btn-dinner-start" onclick="markAttendance('Dinner Start')">🍽️ Dinner Start</button>
+    <button class="btn btn-break btn-dinner-end"   onclick="markAttendance('Dinner End')">↩️ Dinner End</button>
+  </div>
+</div>
+
+<!-- 📋 TODAY'S LOG -->
+<div class="card">
+  <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
+    Today's Log
+    <span id="logCount" style="font-size:11px;background:rgba(0,229,255,0.1);color:var(--accent);border-radius:20px;padding:2px 10px;font-family:'Syne',sans-serif;">0 entries</span>
+  </div>
+  <ul class="log-list" id="logList">
+    <li class="empty-log">No entries yet today</li>
+  </ul>
 </div>
 
 <script>
-const SUPABASE_URL = 'https://ovmbykpmjeurzeeqjntr.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_cOO_6TKEMchrsLZX05B5Ag_Ii75Ag-p';
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-const ERP_BASE = 'https://erp.cozycornerpatios.com/app/sales-order';
+  // ═══════════════════════════════════════════════════════
+  // 🔧 PASTE YOUR APPS SCRIPT URL HERE (one-time setup)
+  const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw0yIKTlb2UcGOAFWUWU7E5FImuCJ68GaUkvYHPTtm0ZDAc2VPdBI3yaq1QAqYnEuVafg/exec";
+  // ═══════════════════════════════════════════════════════
 
-function erpLink(name) {
-  return ERP_BASE + '/' + name;
-}
+  let checkInTime  = null;
+  let checkOutTime = null;
+  let timerInterval = null;
+  let reminderTimer = null;
+  let logCount = 0;
+  const stamps = { Break: [], Lunch: [], Dinner: [] };
 
-function daysBadge(d) {
-  if (d >= 3) return '<span class="days-badge db-red">' + d + 'd</span>';
-  if (d >= 2) return '<span class="days-badge db-yellow">' + d + 'd</span>';
-  return '<span class="days-badge db-green">' + d + 'd</span>';
-}
-
-function rowClass(d) {
-  if (d >= 3) return 'row-red';
-  if (d >= 2) return 'row-yellow';
-  return 'row-green';
-}
-
-async function loadAll() {
-  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
-  try {
-    // Fetch orders
-    const { data: orders, error: oErr } = await sb.from('orders').select('*');
-    if (oErr) throw oErr;
-
-    // Fetch tickets
-    const { data: tickets, error: tErr } = await sb.from('tickets').select('*');
-    if (tErr) throw tErr;
-
-    // Fetch comms
-    const { data: comms, error: cErr } = await sb.from('communications').select('*');
-    if (cErr) throw cErr;
-
-    // Fetch snapshots (last 7 days)
-    const d7 = new Date(); d7.setDate(d7.getDate() - 7);
-    const sevenAgo = d7.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
-    const { data: snaps, error: sErr } = await sb.from('daily_snapshots').select('*').gte('snapshot_date', sevenAgo).order('snapshot_date');
-    if (sErr) throw sErr;
-
-    renderPipeline(orders || []);
-    renderPendingQueue(orders || []);
-    renderTickets(tickets || []);
-    renderComms(comms || []);
-    renderAlerts(orders || [], tickets || [], comms || []);
-    renderSOD(snaps || [], today, orders || []);
-    renderTrend(snaps || []);
-
-    const now = new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' });
-    document.getElementById('syncInfo').innerHTML = '<span class="sync-dot"></span>Updated ' + now + ' IST';
-    document.getElementById('error').innerHTML = '';
-  } catch (err) {
-    document.getElementById('error').innerHTML = '<div class="error-msg">Error: ' + err.message + '</div>';
+  // CLOCK
+  function updateClock() {
+    const n = new Date();
+    document.getElementById('clockTime').textContent =
+      n.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    document.getElementById('clockDate').textContent =
+      n.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
   }
-}
+  setInterval(updateClock,1000); updateClock();
 
-function renderPipeline(orders) {
-  const counts = { NEW: 0, 'CONFIRMATION PENDING': 0, APPROVED: 0, 'OPS REVIEW': 0, FAILED: 0 };
-  orders.forEach(o => { if (counts[o.ops_status] !== undefined) counts[o.ops_status]++; });
-  document.getElementById('pipeline').innerHTML =
-    '<div class="pipe-card p-new"><div class="pipe-count">' + counts.NEW + '</div><div class="pipe-label">New</div></div>' +
-    '<div class="pipe-card p-pend"><div class="pipe-count">' + counts['CONFIRMATION PENDING'] + '</div><div class="pipe-label">Conf. Pending</div></div>' +
-    '<div class="pipe-card p-appr"><div class="pipe-count">' + counts.APPROVED + '</div><div class="pipe-label">Approved</div></div>' +
-    '<div class="pipe-card p-rev"><div class="pipe-count">' + counts['OPS REVIEW'] + '</div><div class="pipe-label">Ops Review</div></div>' +
-    '<div class="pipe-card p-fail"><div class="pipe-count">' + counts.FAILED + '</div><div class="pipe-label">Failed</div></div>';
-}
-
-function renderPendingQueue(orders) {
-  const pending = orders.filter(o => o.ops_status === 'CONFIRMATION PENDING').sort((a, b) => b.days_pending - a.days_pending);
-  if (pending.length === 0) {
-    document.getElementById('pendingQueue').innerHTML = '<div style="text-align:center;padding:20px;color:#94A3B8">No pending confirmations</div>';
-    return;
+  // FORMAT
+  function fmtSec(s) {
+    const h=Math.floor(s/3600), m=Math.floor((s%3600)/60), ss=s%60;
+    return `${h}:${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
   }
-  let html = '<table class="qtbl"><thead><tr><th>Order</th><th>Agent</th><th>Type</th><th>Qty</th><th>Days</th></tr></thead><tbody>';
-  pending.forEach(o => {
-    html += '<tr class="' + rowClass(o.days_pending) + '">' +
-      '<td><a class="q-link" href="' + erpLink(o.order_name) + '" target="_blank">' + o.order_name + '</a></td>' +
-      '<td>' + o.agent + '</td>' +
-      '<td>' + o.order_type + '</td>' +
-      '<td>' + (o.total_qty || 0) + '</td>' +
-      '<td>' + daysBadge(o.days_pending) + '</td></tr>';
-  });
-  html += '</tbody></table>';
-  document.getElementById('pendingQueue').innerHTML = html;
-}
-
-function renderTickets(tickets) {
-  const open = tickets.filter(t => t.status === 'open').length;
-  const pend = tickets.filter(t => t.status === 'pending').length;
-  const solved = tickets.filter(t => t.status === 'solved').length;
-  const total = tickets.length;
-  document.getElementById('ticketCards').innerHTML =
-    '<div class="ticket-grid">' +
-    '<div class="tc tc-open"><div class="tc-count">' + open + '</div><div class="tc-label">Open</div></div>' +
-    '<div class="tc tc-pend"><div class="tc-count">' + pend + '</div><div class="tc-label">Pending</div></div>' +
-    '<div class="tc tc-solved"><div class="tc-count">' + solved + '</div><div class="tc-label">Solved</div></div>' +
-    '</div>' +
-    '<div class="ticket-total">Total: <span>' + total + '</span> tickets</div>';
-}
-
-function renderComms(comms) {
-  const total = comms.length;
-  const acked = comms.filter(c => c.acknowledged).length;
-  const missed = comms.filter(c => !c.acknowledged).length;
-  document.getElementById('commStats').innerHTML =
-    '<div class="comm-grid">' +
-    '<div class="cc cc-total"><div class="cc-count">' + total + '</div><div class="cc-label">Total</div></div>' +
-    '<div class="cc cc-ack"><div class="cc-count">' + acked + '</div><div class="cc-label">Handled</div></div>' +
-    '<div class="cc cc-miss"><div class="cc-count">' + missed + '</div><div class="cc-label">Missed</div></div>' +
-    '<div class="cc cc-pend"><div class="cc-count">' + (total - acked - missed) + '</div><div class="cc-label">Pending</div></div>' +
-    '</div>';
-}
-
-function renderAlerts(orders, tickets, comms) {
-  const badges = [];
-  const rush = orders.filter(o => o.is_rush).length;
-  if (rush > 0) badges.push('<div class="alert a-rush">&#9889; ' + rush + ' rush order' + (rush > 1 ? 's' : '') + '</div>');
-  const aged = orders.filter(o => o.ops_status === 'CONFIRMATION PENDING' && o.days_pending >= 3).length;
-  if (aged > 0) badges.push('<div class="alert a-aged">&#9200; ' + aged + ' pending 3+ days</div>');
-  const missed = comms.filter(c => !c.acknowledged).length;
-  if (missed > 0) badges.push('<div class="alert a-miss">&#9993; ' + missed + ' missed comms</div>');
-  if (badges.length === 0) badges.push('<div class="alert a-clear">&#10004; All clear — no urgent items</div>');
-  document.getElementById('alerts').innerHTML = '<div class="alerts">' + badges.join('') + '</div>';
-}
-
-function renderSOD(snaps, today, orders) {
-  const todaySnaps = snaps.filter(s => s.snapshot_date === today);
-  if (todaySnaps.length === 0) {
-    document.getElementById('sodTable').innerHTML = '<div style="text-align:center;padding:20px;color:#94A3B8">No snapshot data for today yet</div>';
-    return;
+  function fmtMs(ms) {
+    const tot=Math.round(ms/60000), h=Math.floor(tot/60), m=tot%60;
+    return h>0 ? `${h}h ${m}m` : `${m}m`;
   }
-  let totalSod = 0, totalRem = 0, totalWorked = 0, totalOrders = 0;
-  let rows = '';
-  todaySnaps.sort((a, b) => a.agent.localeCompare(b.agent));
-  todaySnaps.forEach(s => {
-    const sod = s.sod_new_count || 0;
-    const rem = s.new_count || 0;
-    const worked = Math.max(0, sod - rem);
-    const tot = s.total_orders || 0;
-    totalSod += sod; totalRem += rem; totalWorked += worked; totalOrders += tot;
-    rows += '<tr><td class="agent-name">' + s.agent + '</td>' +
-      '<td class="num">' + sod + '</td>' +
-      '<td class="num">' + rem + '</td>' +
-      '<td class="num worked-val">' + worked + '</td>' +
-      '<td class="num">' + tot + '</td></tr>';
-  });
-  rows += '<tr class="total-row"><td>TOTAL</td>' +
-    '<td class="num">' + totalSod + '</td>' +
-    '<td class="num">' + totalRem + '</td>' +
-    '<td class="num worked-val">' + totalWorked + '</td>' +
-    '<td class="num">' + totalOrders + '</td></tr>';
 
-  document.getElementById('sodTable').innerHTML =
-    '<table class="sod-tbl"><thead><tr><th>Agent</th><th class="num">SOD (New)</th><th class="num">Remaining</th><th class="num">Worked</th><th class="num">Total Orders</th></tr></thead><tbody>' + rows + '</tbody></table>';
-}
-
-function renderTrend(snaps) {
-  const dateMap = {};
-  snaps.forEach(s => {
-    if (!dateMap[s.snapshot_date]) dateMap[s.snapshot_date] = { n: 0, p: 0, a: 0 };
-    dateMap[s.snapshot_date].n += (s.new_count || 0);
-    dateMap[s.snapshot_date].p += (s.pending_count || 0);
-    dateMap[s.snapshot_date].a += (s.approved_count || 0);
-  });
-  const dates = Object.keys(dateMap).sort().slice(-7);
-  if (dates.length === 0) {
-    document.getElementById('trendChart').innerHTML = '<div style="text-align:center;padding:20px;color:#94A3B8">No trend data yet</div>';
-    return;
+  // LIVE TIMER
+  function startWorkTimer() {
+    document.getElementById('timerCard').classList.add('show');
+    document.getElementById('statsGrid').style.display = 'grid';
+    if (timerInterval) clearInterval(timerInterval);
+    timerInterval = setInterval(() => {
+      if (!checkInTime) return;
+      const elapsed = Math.floor((Date.now() - checkInTime) / 1000);
+      document.getElementById('timerValue').textContent = fmtSec(elapsed);
+      document.getElementById('timerSub').textContent =
+        `Checked in at ${new Date(checkInTime).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})}`;
+      updateStats();
+    }, 1000);
   }
-  const maxVal = Math.max(...dates.map(d => Math.max(dateMap[d].n, dateMap[d].p, dateMap[d].a)), 1);
-  let html = '<div class="trend-row">';
-  dates.forEach(d => {
-    const v = dateMap[d];
-    const hn = Math.max(3, (v.n / maxVal) * 70);
-    const hp = Math.max(3, (v.p / maxVal) * 70);
-    const ha = Math.max(3, (v.a / maxVal) * 70);
-    const label = new Date(d + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', day: 'numeric' });
-    html += '<div class="trend-grp"><div class="trend-bars">' +
-      '<div class="trend-bar tb-new" style="height:' + hn + 'px" title="New: ' + v.n + '"></div>' +
-      '<div class="trend-bar tb-pend" style="height:' + hp + 'px" title="Pending: ' + v.p + '"></div>' +
-      '<div class="trend-bar tb-appr" style="height:' + ha + 'px" title="Approved: ' + v.a + '"></div>' +
-      '</div><div class="trend-date">' + label + '</div></div>';
-  });
-  html += '</div>';
-  html += '<div class="trend-legend">' +
-    '<div class="trend-legend-item"><div class="legend-dot" style="background:#93C5FD"></div>New</div>' +
-    '<div class="trend-legend-item"><div class="legend-dot" style="background:#FCD34D"></div>Pending</div>' +
-    '<div class="trend-legend-item"><div class="legend-dot" style="background:#6EE7B7"></div>Approved</div>' +
-    '</div>';
-  document.getElementById('trendChart').innerHTML = html;
-}
 
-loadAll();
-setInterval(loadAll, 60000);
+  function stopWorkTimer() {
+    clearInterval(timerInterval);
+    document.getElementById('timerCard').classList.remove('show');
+    updateStats();
+  }
+
+  // STATS
+  function calcTotal(cat) {
+    const arr = stamps[cat]; let total = 0;
+    for (let i = 0; i+1 < arr.length; i += 2) {
+      if (arr[i].type===cat+' Start' && arr[i+1]?.type===cat+' End')
+        total += arr[i+1].ts - arr[i].ts;
+    }
+    return total;
+  }
+  function updateStats() {
+    if (!checkInTime) return;
+    const workMs = checkOutTime ? checkOutTime-checkInTime : Date.now()-checkInTime;
+    document.getElementById('statWork').textContent   = fmtMs(workMs);
+    document.getElementById('statBreak').textContent  = fmtMs(calcTotal('Break'));
+    document.getElementById('statLunch').textContent  = fmtMs(calcTotal('Lunch'));
+    document.getElementById('statDinner').textContent = fmtMs(calcTotal('Dinner'));
+  }
+
+  // REMINDER
+  function startReminder() {
+    if (reminderTimer) clearTimeout(reminderTimer);
+    reminderTimer = setTimeout(() => {
+      if (!checkOutTime) showReminder();
+    }, 8*60*60*1000);
+  }
+  function showReminder() {
+    document.getElementById('reminderBanner').classList.add('show');
+    if ('Notification' in window && Notification.permission==='granted')
+      new Notification('CozyCorne Patios',{body:"⚠️ You haven't checked out! It's been 8+ hours."});
+  }
+  function hideReminder() {
+    document.getElementById('reminderBanner').classList.remove('show');
+    if (reminderTimer) clearTimeout(reminderTimer);
+  }
+  if ('Notification' in window && Notification.permission==='default')
+    Notification.requestPermission();
+
+  // LOAD SAVED EMPLOYEE DETAILS
+  window.addEventListener('DOMContentLoaded', () => {
+    const s = JSON.parse(localStorage.getItem('attendx_emp') || '{}');
+    if (s.name) document.getElementById('empName').value = s.name;
+    if (s.id)   document.getElementById('empId').value   = s.id;
+    if (s.dept) document.getElementById('empDept').value = s.dept;
+  });
+
+  function saveDetails() {
+    localStorage.setItem('attendx_emp', JSON.stringify({
+      name: document.getElementById('empName').value.trim(),
+      id:   document.getElementById('empId').value.trim(),
+      dept: document.getElementById('empDept').value
+    }));
+  }
+
+  function clearDetails() {
+    localStorage.removeItem('attendx_emp');
+    ['empName','empId'].forEach(id=>document.getElementById(id).value='');
+    document.getElementById('empDept').value='';
+    setStatus('idle','Details cleared — please enter again');
+  }
+
+  // STATUS
+  function setStatus(type, msg) {
+    document.getElementById('statusBar').className = 'status-bar status-'+type;
+    document.getElementById('statusText').textContent = msg;
+  }
+
+  // GPS
+  function getLocation() {
+    return new Promise(resolve => {
+      if (!navigator.geolocation) { resolve({lat:'N/A',lng:'N/A',label:'GPS not supported'}); return; }
+      setStatus('loading','📍 Getting your GPS location...');
+      navigator.geolocation.getCurrentPosition(
+        p => resolve({lat:p.coords.latitude.toFixed(6),lng:p.coords.longitude.toFixed(6),
+                      label:`${p.coords.latitude.toFixed(4)}, ${p.coords.longitude.toFixed(4)}`}),
+        () => resolve({lat:'Denied',lng:'Denied',label:'Location access denied'}),
+        {timeout:10000}
+      );
+    });
+  }
+
+  // VALIDATE
+  function validate() {
+    const name=document.getElementById('empName').value.trim();
+    const id=document.getElementById('empId').value.trim();
+    const dept=document.getElementById('empDept').value;
+    if (!name) { setStatus('error','⚠️ Please enter your full name'); return false; }
+    if (!id)   { setStatus('error','⚠️ Please enter your Employee ID'); return false; }
+    if (!dept) { setStatus('error','⚠️ Please select your department'); return false; }
+    return {name,id,dept};
+  }
+
+  // SEND TO GOOGLE SHEETS
+  async function sendToSheets(data) {
+    if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL === "YOUR_APPS_SCRIPT_URL_HERE")
+      return {ok:false, msg:'Script URL not set'};
+    try {
+      await fetch(APPS_SCRIPT_URL,{method:'POST',mode:'no-cors',
+        headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+      return {ok:true};
+    } catch(e) { return {ok:false,msg:'Network error'}; }
+  }
+
+  // BADGE MAP
+  const badgeMap = {
+    'Check-In':    ['in',    'IN'],    'Check-Out':   ['out',   'OUT'],
+    'Break Start': ['break', '☕ START'],'Break End':  ['break', '☕ END'],
+    'Lunch Start': ['lunch', '🍱 START'],'Lunch End':  ['lunch', '🍱 END'],
+    'Dinner Start':['dinner','🍽️ START'],'Dinner End': ['dinner','🍽️ END'],
+  };
+
+  // ADD LOG ITEM
+  function addLog(data, durLabel) {
+    const list = document.getElementById('logList');
+    const empty = list.querySelector('.empty-log');
+    if (empty) empty.remove();
+    logCount++;
+    document.getElementById('logCount').textContent =
+      `${logCount} entr${logCount===1?'y':'ies'}`;
+    const [bc,bl] = badgeMap[data.type] || ['in',data.type];
+    const li = document.createElement('li');
+    li.className = 'log-item';
+    li.innerHTML = `
+      <div>
+        <div class="log-name">${data.name} <span style="color:var(--muted);font-weight:400">(${data.id})</span></div>
+        <div class="log-time">${data.dept} • ${data.time}</div>
+        ${durLabel ? `<div class="log-dur">⏱ ${durLabel}</div>` : ''}
+      </div>
+      <div class="badge badge-${bc}">${bl}</div>`;
+    list.prepend(li);
+  }
+
+  function setAllButtons(d) { document.querySelectorAll('.btn').forEach(b=>b.disabled=d); }
+
+  // MAIN: MARK ATTENDANCE
+  async function markAttendance(type) {
+    const emp = validate();
+    if (!emp) return;
+    saveDetails();
+    setAllButtons(true);
+
+    const location = await getLocation();
+    const now   = new Date();
+    const tsNow = now.getTime();
+    const date  = now.toLocaleDateString('en-IN');
+    const time  = now.toLocaleTimeString('en-IN');
+    let durLabel = null;
+
+    if (type==='Check-In')  { checkInTime=tsNow; checkOutTime=null; hideReminder(); startWorkTimer(); startReminder(); }
+    if (type==='Check-Out') { checkOutTime=tsNow; stopWorkTimer(); hideReminder(); if(checkInTime) durLabel=`Total Work: ${fmtMs(checkOutTime-checkInTime)}`; }
+
+    ['Break','Lunch','Dinner'].forEach(cat => {
+      if (type===cat+' Start') stamps[cat].push({type,ts:tsNow});
+      if (type===cat+' End') {
+        stamps[cat].push({type,ts:tsNow});
+        for (let i=stamps[cat].length-1;i>=0;i--) {
+          if (stamps[cat][i].type===cat+' Start') { durLabel=fmtMs(tsNow-stamps[cat][i].ts); break; }
+        }
+      }
+    });
+
+    const data = {name:emp.name,id:emp.id,department:emp.dept,type,date,time,latitude:location.lat,longitude:location.lng};
+
+    document.getElementById('locationText').textContent = location.label;
+    document.getElementById('locationBox').classList.add('visible');
+
+    setStatus('loading','⏳ Saving to Google Sheets...');
+    const result = await sendToSheets(data);
+    setStatus('success', result.ok
+      ? `✅ ${type} recorded at ${time}`
+      : `✅ ${type} at ${time} (saved locally)`);
+
+    addLog({...data,time}, durLabel);
+    updateStats();
+    setAllButtons(false);
+  }
 </script>
 </body>
 </html>
