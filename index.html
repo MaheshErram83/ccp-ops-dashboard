@@ -218,7 +218,7 @@ tr:hover td{background:var(--bg3)}
     <div class="live-dot">Live</div>
     <div class="sync-status" id="syncStatus">
       <svg class="sync-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
-      <span id="syncText">Syncing…</span>
+      <span id="syncText">Syncingâ€¦</span>
     </div>
   </div>
 </div>
@@ -232,7 +232,7 @@ tr:hover td{background:var(--bg3)}
 
 <!-- ===== MAIN CONTENT ===== -->
 <div class="shell">
-  <div id="mainLoading" class="loading"><div class="spinner"></div>Loading dashboard…</div>
+  <div id="mainLoading" class="loading"><div class="spinner"></div>Loading dashboardâ€¦</div>
   <div id="mainContent" style="display:none">
     <!-- Content rendered dynamically based on active agent + section -->
     <div id="dynamicContent"></div>
@@ -244,8 +244,8 @@ tr:hover td{background:var(--bg3)}
 // CONFIG
 // ============================================================
 const SUPABASE_URL = 'https://ovmbykpmjeurzeeqjntr.supabase.co';
-const SUPABASE_KEY = 'PASTE_YOUR_ANON_KEY_HERE';
-// ☝️ Supabase Dashboard → Settings → API → anon public key
+const SUPABASE_KEY = 'sb_publishable_cOO_6TKEMchrsLZX05B5Ag_Ii75Ag-p';
+// â˜ï¸ Supabase Dashboard â†’ Settings â†’ API â†’ anon public key
 
 const ERP_BASE = 'https://erp.cozycornerpatios.com';
 const ZENDESK_BASE = 'https://yourcozycornerpatios.zendesk.com';
@@ -334,9 +334,9 @@ function buildAgentBar() {
 
   // Section tabs: Dashboard, Team Total, Performance
   const sections = [
-    { key: 'dashboard',   icon: '⚡', label: 'Dashboard' },
-    { key: 'team-total',  icon: '📊', label: 'Team Total' },
-    { key: 'performance', icon: '📈', label: 'Performance' },
+    { key: 'dashboard',   icon: 'âš¡', label: 'Dashboard' },
+    { key: 'team-total',  icon: 'ðŸ“Š', label: 'Team Total' },
+    { key: 'performance', icon: 'ðŸ“ˆ', label: 'Performance' },
   ];
   sections.forEach(s => {
     const btn = document.createElement('button');
@@ -374,13 +374,13 @@ async function loadAllData() {
     allOrders = ordersRes.data || [];
     allTickets = ticketsRes.data || [];
 
-    document.getElementById('syncText').textContent = `${allOrders.length} orders · ${allTickets.length} tickets — synced ${new Date().toLocaleTimeString()}`;
+    document.getElementById('syncText').textContent = `${allOrders.length} orders Â· ${allTickets.length} tickets â€” synced ${new Date().toLocaleTimeString()}`;
     document.getElementById('mainLoading').style.display = 'none';
     document.getElementById('mainContent').style.display = 'block';
     render();
   } catch (e) {
     console.error('Load error:', e);
-    document.getElementById('syncText').textContent = 'Sync error — check console';
+    document.getElementById('syncText').textContent = 'Sync error â€” check console';
   }
 }
 
@@ -435,11 +435,11 @@ function ageBadge(days) {
 
 function statusBadge(status) {
   const s = STATUS_MAP[status] || { cls: 's-hold' };
-  return `<span class="status-badge ${s.cls}">${status || '—'}</span>`;
+  return `<span class="status-badge ${s.cls}">${status || 'â€”'}</span>`;
 }
 
 function erpLink(orderName) {
-  if (!orderName) return '—';
+  if (!orderName) return 'â€”';
   const encoded = encodeURIComponent(`["like","%${orderName}%"]`);
   return `<a href="${ERP_BASE}/app/work-order?custom_work_order_name=${encoded}" target="_blank" rel="noopener">${orderName}</a>`;
 }
@@ -499,7 +499,7 @@ function renderDashboard(el, orders, tickets, date, label) {
   </div>`;
 
   // Pipeline
-  html += `<div class="section"><div class="section-title">Order Pipeline — ${label}</div><div class="pipeline">`;
+  html += `<div class="section"><div class="section-title">Order Pipeline â€” ${label}</div><div class="pipeline">`;
   PIPELINE_ORDER.forEach(s => {
     const m = STATUS_MAP[s];
     html += `<div class="pipe-stage ${m.pipeCls}"><div class="pipe-count">${sc[s]||0}</div><div class="pipe-label">${m.label}</div></div>`;
@@ -508,7 +508,7 @@ function renderDashboard(el, orders, tickets, date, label) {
 
   // Agent cards (only on All view)
   if (activeAgent === 'all') {
-    html += `<div class="section"><div class="section-title">Agent Performance — ${date}</div><div class="sod-grid">`;
+    html += `<div class="section"><div class="section-title">Agent Performance â€” ${date}</div><div class="sod-grid">`;
     AGENTS.forEach(a => {
       const ao = filterOrders(a.key);
       const an = ao.filter(o => o.ops_status==='NEW').length;
@@ -526,7 +526,7 @@ function renderDashboard(el, orders, tickets, date, label) {
   }
 
   // 7-day trend
-  html += `<div class="section"><div class="section-title">${label} — 7-Day Trend</div>
+  html += `<div class="section"><div class="section-title">${label} â€” 7-Day Trend</div>
     <div class="chart-container" id="chartArea"></div>
     <div class="chart-legend"><span class="l-worked">Worked</span><span class="l-new">New Incoming</span></div>
   </div>`;
@@ -537,14 +537,14 @@ function renderDashboard(el, orders, tickets, date, label) {
     if(a.ops_status!=='NEW' && b.ops_status==='NEW') return 1;
     return daysAgo(b.creation||b.created_at) - daysAgo(a.creation||a.created_at);
   });
-  html += `<div class="section"><div class="section-title">${label} — Order Queue
+  html += `<div class="section"><div class="section-title">${label} â€” Order Queue
     <span class="badge" style="background:var(--accent-dim);color:var(--accent)">${orders.length}</span></div>
     <div class="tbl-wrap" style="max-height:420px;overflow-y:auto"><table>
     <thead><tr><th>Order #</th><th>Status</th><th>Agent</th><th>Age</th><th>Updated</th></tr></thead><tbody>`;
   sortedOrders.slice(0,80).forEach(o => {
     const age = daysAgo(o.creation || o.created_at);
-    const updated = o.ops_status_updated_at ? new Date(o.ops_status_updated_at).toLocaleDateString() : '—';
-    const assignedAgent = AGENTS.find(a => (o.assigned_to||'').toLowerCase().includes(a.email))?.name || '—';
+    const updated = o.ops_status_updated_at ? new Date(o.ops_status_updated_at).toLocaleDateString() : 'â€”';
+    const assignedAgent = AGENTS.find(a => (o.assigned_to||'').toLowerCase().includes(a.email))?.name || 'â€”';
     html += `<tr><td>${erpLink(o.work_order_name||o.name)}</td><td>${statusBadge(o.ops_status||'NEW')}</td><td>${assignedAgent}</td><td>${ageBadge(age)}</td><td>${updated}</td></tr>`;
   });
   if(!sortedOrders.length) html += '<tr><td colspan="5" class="empty">No orders</td></tr>';
@@ -553,14 +553,14 @@ function renderDashboard(el, orders, tickets, date, label) {
   // Zendesk tickets
   const openTickets = tickets.filter(t => !['solved','closed'].includes((t.status||'').toLowerCase()))
     .sort((a,b) => {const p={urgent:0,high:1,normal:2,low:3}; return (p[a.priority]||2)-(p[b.priority]||2);});
-  html += `<div class="section"><div class="section-title">${label} — Zendesk Tickets
+  html += `<div class="section"><div class="section-title">${label} â€” Zendesk Tickets
     <span class="badge" style="background:var(--accent-dim);color:var(--accent)">${openTickets.length}</span></div>
     <div class="ticket-cards">`;
   openTickets.slice(0,30).forEach(t => {
     const pCls = t.priority==='urgent'?'t-urgent':t.priority==='high'?'t-high':'';
     html += `<div class="ticket-card ${pCls}">
-      <div class="t-subj"><a href="${zdLink(t.ticket_id||t.id)}" target="_blank">#${t.ticket_id||t.id}</a> ${t.subject||'—'}</div>
-      <div class="t-meta"><span>${t.status||'—'}</span><span>${t.priority||'normal'}</span><span>${t.assignee||'—'}</span></div>
+      <div class="t-subj"><a href="${zdLink(t.ticket_id||t.id)}" target="_blank">#${t.ticket_id||t.id}</a> ${t.subject||'â€”'}</div>
+      <div class="t-meta"><span>${t.status||'â€”'}</span><span>${t.priority||'normal'}</span><span>${t.assignee||'â€”'}</span></div>
     </div>`;
   });
   if(!openTickets.length) html += '<div class="empty">No open tickets</div>';
@@ -576,7 +576,7 @@ function renderDashboard(el, orders, tickets, date, label) {
 // SECTION: TEAM TOTAL
 // ============================================================
 function renderTeamTotal(el, orders, tickets, date, label) {
-  let html = `<div class="section"><div class="section-title">Team Total — ${label}</div>
+  let html = `<div class="section"><div class="section-title">Team Total â€” ${label}</div>
     <p style="color:var(--tx3);font-size:.85rem;padding:20px 0">Team Total view coming soon. Switch agents above to see individual breakdowns, or use Dashboard tab for the overview.</p>
   </div>`;
   el.innerHTML = html;
@@ -586,7 +586,7 @@ function renderTeamTotal(el, orders, tickets, date, label) {
 // SECTION: PERFORMANCE
 // ============================================================
 function renderPerformance(el, orders, tickets, date, label) {
-  let html = `<div class="section"><div class="section-title">Performance — ${label}</div>
+  let html = `<div class="section"><div class="section-title">Performance â€” ${label}</div>
     <p style="color:var(--tx3);font-size:.85rem;padding:20px 0">Performance analytics coming soon. This will include weekly/monthly trends, throughput rates, and SLA tracking.</p>
   </div>`;
   el.innerHTML = html;
