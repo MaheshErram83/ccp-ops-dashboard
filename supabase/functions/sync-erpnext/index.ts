@@ -1,221 +1,354 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const ERP_URL = Deno.env.get('ERP_URL')!
-const ERP_KEY = Deno.env.get('ERP_API_KEY')!
-const ERP_SECRET = Deno.env.get('ERP_API_SECRET')!
-const ZD_SUBDOMAIN = Deno.env.get('ZENDESK_SUBDOMAIN')!
-const ZD_EMAIL = Deno.env.get('ZENDESK_EMAIL')!
-const ZD_TOKEN = Deno.env.get('ZENDESK_API_TOKEN')!
-const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
-const SUPABASE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+const ERP_URL = Deno.env.get("ERP_URL")!;
+const ERP_API_KEY = Deno.env.get("ERP_API_KEY")!;
+const ERP_API_SECRET = Deno.env.get("ERP_API_SECRET")!;
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY)
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+const ERP_AUTH = `token ${ERP_API_KEY}:${ERP_API_SECRET}`;
 
-const AGENTS: Record<string, string> = {
-  'Leo': 'leo@cozycornerpatios.com',
-  'Oscar': 'oscar@cozycornerpatios.com',
-  'Smith': 'smith@cozycornerpatios.com',
-  'Richard': 'richard@cozycornerpatios.com',
-  'Jason': 'jason@cozycornerpatios.com',
-  'Liam': 'liam@cozycornerpatios.com',
+const OPS_AGENTS: Record<string, string> = {
+  "leo@cozycornerpatios.com": "Leo",
+  "oscar@cozycornerpatios.com": "Oscar",
+  "smith@cozycornerpatios.com": "Smith",
+  "richard@cozycornerpatios.com": "Richard",
+  "jason@cozycornerpatios.com": "Jason",
+  "liam@cozycornerpatios.com": "Liam",
+};
+
+// Exclude these from agent detection
+const EXCLUDED_USERS = [
+  "administrator", "admin@", "vinay@", "guest",
+  "priyanshi@", "sahil@", "sahilvik", "harshitverma@",
+  "factory@", "rakesh@",
+];
+
+function isExcludedUser(email: string): boolean {
+  const lower = email.toLowerCase();
+  return EXCLUDED_USERS.some((ex) => lower.includes(ex));
 }
 
-const ZD_SUPPORT_ACCOUNTS = [
-  'support01@cozycornerpatios.com',
-  'support02@cozycornerpatios.com',
-]
-
-async function fetchERP(doctype: string, filters: any[], fields: string[]) {
-  const url = ERP_URL + '/api/resource/' + encodeURIComponent(doctype)
-    + '?filters=' + encodeURIComponent(JSON.stringify(filters))
-    + '&fields=' + encodeURIComponent(JSON.stringify(fields))
-    + '&limit_page_size=0'
-  const resp = await fetch(url, {
-    headers: { 'Authorization': 'token ' + ERP_KEY + ':' + ERP_SECRET },
-  })
-  if (resp.status === 417) throw new Error('Invalid field name in ' + doctype)
-  if (!resp.ok) throw new Error('ERPNext error ' + resp.status)
-  const data = await resp.json()
-  return data.data || []
-}
-
-function toIST(utcStr: string): string {
-  if (!utcStr) return ''
-  const d = new Date(utcStr.replace(' ', 'T') + 'Z')
-  return d.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
-}
-
-function daysPending(utcStr: string): number {
-  if (!utcStr) return 0
-  const created = new Date(utcStr.replace(' ', 'T') + 'Z')
-  return Math.floor((Date.now() - created.getTime()) / 86400000)
-}
-
-function classifyOrder(name: string): string {
-  if (/^(F-53-|C-53-)/.test(name)) return 'Cover'
-  if (/^F-40/.test(name)) return 'Marketplace'
-  return 'Cushion'
-}
-
-const ZD_BASE = 'https://' + ZD_SUBDOMAIN + '.zendesk.com/api/v2'
-const ZD_AUTH = btoa(ZD_EMAIL + '/token:' + ZD_TOKEN)
-
-async function fetchZendeskTickets(accountEmail: string): Promise<any[]> {
-  const query = 'type:ticket assignee:' + accountEmail + ' status<closed'
-  const url = ZD_BASE + '/search.json?query=' + encodeURIComponent(query) + '&per_page=100'
-  const resp = await fetch(url, {
-    headers: { 'Authorization': 'Basic ' + ZD_AUTH, 'Content-Type': 'application/json' },
-  })
-  if (resp.status === 429) throw new Error('Zendesk rate limited for ' + accountEmail)
-  if (!resp.ok) throw new Error('Zendesk error ' + resp.status)
-  const data = await resp.json()
-  return data.results || []
-}
-
-Deno.serve(async (_req) => {
-  const startTime = Date.now()
-  const errors: string[] = []
-  let totalOrders = 0
-  let totalTickets = 0
-
-  try {
-    const allOrders: any[] = []
-
-    for (const [agentName, agentEmail] of Object.entries(AGENTS)) {
-      try {
-        const orders = await fetchERP('Sales Order', [
-          ['_assign', 'like', '%' + agentEmail + '%'],
-          ['docstatus', '=', 1],
-          ['custom_ops_status', 'not in', ['COMPLETED', 'CANCELLED']],
-        ], [
-          'name', 'custom_ops_status', 'creation', 'total_qty',
-          'custom_shopify_fulfilment_status',
-        ])
-        for (const o of orders) {
-          allOrders.push({
-            order_name: o.name,
-            agent: agentName,
-            ops_status: o.custom_ops_status || 'NEW',
-            order_type: classifyOrder(o.name),
-            creation_ist: toIST(o.creation),
-            days_pending: daysPending(o.creation),
-            total_qty: o.total_qty || 0,
-            is_rush: false,
-            shopify_fulfilment_status: o.custom_shopify_fulfilment_status || '',
-            aggregate_production_status: '',
-            synced_at: new Date().toISOString(),
-          })
-        }
-      } catch (err) {
-        errors.push('Orders/' + agentName + ': ' + (err as Error).message)
-      }
-    }
-
-    await supabase.from('orders').delete().neq('id', 0)
-    for (let i = 0; i < allOrders.length; i += 100) {
-      const batch = allOrders.slice(i, i + 100)
-      const { error } = await supabase.from('orders').insert(batch)
-      if (error) errors.push('Insert orders batch ' + i + ': ' + error.message)
-    }
-    totalOrders = allOrders.length
-
-    // ZENDESK: Search by shared support accounts (not per-agent)
-    const allTickets: any[] = []
-    for (const zdEmail of ZD_SUPPORT_ACCOUNTS) {
-      try {
-        await new Promise((r) => setTimeout(r, 2000))
-        const tickets = await fetchZendeskTickets(zdEmail)
-        for (const t of tickets) {
-          allTickets.push({
-            ticket_id: String(t.id),
-            agent: 'OPS Team',
-            subject: (t.subject || '').slice(0, 200),
-            status: t.status || 'unknown',
-            priority: t.priority || 'normal',
-            created_at_ist: toIST(t.created_at),
-            updated_at_ist: toIST(t.updated_at),
-            ticket_url: 'https://' + ZD_SUBDOMAIN + '.zendesk.com/agent/tickets/' + t.id,
-            synced_at: new Date().toISOString(),
-          })
-        }
-      } catch (err) {
-        errors.push('Tickets/' + zdEmail + ': ' + (err as Error).message)
-      }
-    }
-
-    await supabase.from('tickets').delete().neq('id', 0)
-    for (let i = 0; i < allTickets.length; i += 100) {
-      const batch = allTickets.slice(i, i + 100)
-      const { error } = await supabase.from('tickets').insert(batch)
-      if (error) errors.push('Insert tickets batch ' + i + ': ' + error.message)
-    }
-    totalTickets = allTickets.length
-
-    try {
-      const comms = await fetchERP('Factory to Ops Communication', [
-        ['creation', '>=', new Date(Date.now() - 48 * 3600000).toISOString().slice(0, 10)],
-      ], ['name', 'creation', 'acknowledged'])
-      const commRows = comms.map((c: any) => ({
-        comm_name: c.name,
-        reference_order: '',
-        agent: '',
-        creation_ist: toIST(c.creation),
-        acknowledged: c.acknowledged === 1,
-        synced_at: new Date().toISOString(),
-      }))
-      await supabase.from('communications').delete().neq('id', 0)
-      for (let i = 0; i < commRows.length; i += 100) {
-        const batch = commRows.slice(i, i + 100)
-        const { error } = await supabase.from('communications').insert(batch)
-        if (error) errors.push('Insert comms batch ' + i + ': ' + error.message)
-      }
-    } catch (err) {
-      errors.push('Communications: ' + (err as Error).message)
-    }
-
-    // SOD/EOD SNAPSHOT LOGIC
-    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
-    for (const agentName of Object.keys(AGENTS)) {
-      const agentOrders = allOrders.filter((o) => o.agent === agentName)
-      const agentTickets = allTickets.filter((t) => t.agent === agentName)
-      const currentNewCount = agentOrders.filter((o) => o.ops_status === 'NEW').length
-
-      const { data: existing } = await supabase
-        .from('daily_snapshots')
-        .select('sod_new_count')
-        .eq('snapshot_date', today)
-        .eq('agent', agentName)
-        .limit(1)
-
-      const sodCount = (existing && existing.length > 0 && existing[0].sod_new_count > 0)
-        ? existing[0].sod_new_count
-        : currentNewCount
-
-      const snapshot = {
-        snapshot_date: today,
-        agent: agentName,
-        sod_new_count: sodCount,
-        new_count: currentNewCount,
-        pending_count: agentOrders.filter((o) => o.ops_status === 'CONFIRMATION PENDING').length,
-        approved_count: agentOrders.filter((o) => o.ops_status === 'APPROVED').length,
-        review_count: agentOrders.filter((o) => o.ops_status === 'OPS REVIEW').length,
-        failed_count: agentOrders.filter((o) => o.ops_status === 'FAILED').length,
-        handled_count: agentTickets.filter((t) => t.status === 'solved').length,
-        missed_count: agentTickets.filter((t) => t.status === 'open').length,
-        total_orders: agentOrders.length,
-      }
-      await supabase.from('daily_snapshots').upsert(snapshot, { onConflict: 'snapshot_date,agent' })
-    }
-
-    const duration = ((Date.now() - startTime) / 1000).toFixed(1)
-    return new Response(JSON.stringify({
-      success: true, orders_synced: totalOrders, tickets_synced: totalTickets,
-      agents: Object.keys(AGENTS).length, duration_sec: duration,
-      errors: errors.length > 0 ? errors : 'none',
-    }), { headers: { 'Content-Type': 'application/json' } })
-
-  } catch (err) {
-    return new Response(JSON.stringify({ success: false, error: (err as Error).message }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } })
+async function erpFetch(endpoint: string): Promise<any> {
+  const res = await fetch(`${ERP_URL}${endpoint}`, {
+    headers: { Authorization: ERP_AUTH },
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`ERPNext ${res.status}: ${text.substring(0, 200)}`);
   }
-})
+  return res.json();
+}
+
+// ── Fetch order names ──────────────────────────────────────
+
+async function fetchRecentOrderNames(minutesAgo: number): Promise<string[]> {
+  const since = new Date(Date.now() - minutesAgo * 60 * 1000);
+  const sinceStr = since.toISOString().replace("T", " ").substring(0, 19);
+  const filters = JSON.stringify([
+    ["docstatus", "=", "1"],
+    ["custom_ops_status", "!=", ""],
+    ["modified", ">=", sinceStr],
+  ]);
+  const url = `/api/resource/Sales Order?filters=${encodeURIComponent(filters)}&fields=${encodeURIComponent(JSON.stringify(["name"]))}&limit_page_length=100&order_by=modified desc`;
+  const data = await erpFetch(url);
+  return (data.data || []).map((o: any) => o.name);
+}
+
+async function fetchAllActiveOrderNames(): Promise<string[]> {
+  const filters = JSON.stringify([
+    ["docstatus", "=", "1"],
+    ["custom_ops_status", "!=", ""],
+    ["custom_ops_status", "not in", ["COMPLETED", "SHIPPED"]],
+  ]);
+  const url = `/api/resource/Sales Order?filters=${encodeURIComponent(filters)}&fields=${encodeURIComponent(JSON.stringify(["name"]))}&limit_page_length=0&order_by=modified desc`;
+  const data = await erpFetch(url);
+  return (data.data || []).map((o: any) => o.name);
+}
+
+async function fetchOrderDetail(name: string): Promise<any | null> {
+  try {
+    const data = await erpFetch(`/api/resource/Sales Order/${encodeURIComponent(name)}`);
+    return data.data;
+  } catch { return null; }
+}
+
+async function fetchOrderDetails(names: string[]): Promise<any[]> {
+  const results: any[] = [];
+  for (let i = 0; i < names.length; i++) {
+    const doc = await fetchOrderDetail(names[i]);
+    if (doc) results.push(doc);
+    if (i > 0 && i % 3 === 0) await new Promise((r) => setTimeout(r, 100));
+  }
+  return results;
+}
+
+// ── Agent Detection ────────────────────────────────────────
+// Priority: 1) _assign field  2) modified_by field
+
+function extractAgent(doc: any): string | null {
+  // 1. Check _assign first (rare but explicit assignment)
+  const assign = doc._assign;
+  if (assign) {
+    try {
+      const emails: string[] = typeof assign === "string" ? JSON.parse(assign) : assign;
+      for (const email of emails) {
+        const c = email.trim().toLowerCase();
+        if (OPS_AGENTS[c]) return OPS_AGENTS[c];
+      }
+    } catch {}
+  }
+
+  // 2. Fallback: modified_by (who last worked on it)
+  const modifiedBy = (doc.modified_by || "").toLowerCase();
+  if (modifiedBy && !isExcludedUser(modifiedBy) && OPS_AGENTS[modifiedBy]) {
+    return OPS_AGENTS[modifiedBy];
+  }
+
+  // 3. Check owner too
+  const owner = (doc.owner || "").toLowerCase();
+  if (owner && !isExcludedUser(owner) && OPS_AGENTS[owner]) {
+    return OPS_AGENTS[owner];
+  }
+
+  return null;
+}
+
+// ── Helpers ────────────────────────────────────────────────
+
+function deriveStore(doc: any): { store: string; prefix: string } {
+  // Check custom_sales_channel first
+  const channel = (doc.custom_sales_channel || "").toLowerCase();
+  if (channel.includes("etsy")) return { store: "Marketplace", prefix: "F-40" };
+
+  const soName = (doc.custom_sales_order_name || doc.name || "").toUpperCase();
+  if (soName.match(/^[FC]-43/)) return { store: "ZipCushions", prefix: "F-43" };
+  if (soName.match(/^[FC]-53/)) return { store: "ZipCovers", prefix: "F-53" };
+  if (soName.match(/^F-4\d{8,}/)) return { store: "Marketplace", prefix: "F-40" };
+  if (doc.custom_is_zipcovers_order) return { store: "ZipCovers", prefix: "F-53" };
+  if (doc.custom_is_market_placed) return { store: "Marketplace", prefix: "F-40" };
+  return { store: "ZipCushions", prefix: "F-43" };
+}
+
+function daysSince(dateStr: string | null): number {
+  if (!dateStr) return 0;
+  return Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000);
+}
+
+function toIST(dateStr: string | null): string {
+  if (!dateStr) return "";
+  return new Date(dateStr).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
+}
+
+// ── Sync orders ────────────────────────────────────────────
+
+async function syncOrders(orders: any[]) {
+  let upserted = 0, errors = 0;
+
+  const rows = orders.map((doc) => {
+    const { store, prefix } = deriveStore(doc);
+    const agentName = extractAgent(doc);
+    return {
+      order_name: doc.name,
+      agent: agentName,
+      assigned_agent: agentName,
+      ops_status: doc.custom_ops_status || "",
+      order_type: doc.order_type || "Sales",
+      creation_ist: toIST(doc.creation),
+      days_pending: daysSince(doc.creation),
+      total_qty: doc.total_qty || 0,
+      is_rush: doc.custom_is_rush_order === 1,
+      is_escalated: doc.custom_is_escalated_order === 1,
+      shopify_fulfilment_status: doc.custom_shopify_fulfilment_status || null,
+      aggregate_production_status: doc.custom__aggregate_production_status || null,
+      production_status: doc.custom__aggregate_production_status || null,
+      ops_status_updated_at: doc.modified || null,
+      days_in_current_status: daysSince(doc.modified),
+      store,
+      order_prefix: prefix,
+      synced_at: new Date().toISOString(),
+    };
+  });
+
+  for (let i = 0; i < rows.length; i += 50) {
+    const batch = rows.slice(i, i + 50);
+    const { error } = await supabase.from("orders").upsert(batch, { onConflict: "order_name" });
+    if (error) {
+      errors += batch.length;
+      console.error("Upsert error:", error.message);
+    } else {
+      upserted += batch.length;
+    }
+  }
+  return { upserted, errors };
+}
+
+// ── Link tickets to orders via custom_zendesk_ticket_id ────
+
+async function linkTicketsToOrders(orders: any[]) {
+  let linked = 0;
+  for (const doc of orders) {
+    const ticketId = doc.custom_zendesk_ticket_id;
+    if (!ticketId) continue;
+
+    const { error } = await supabase.from("tickets")
+      .update({ linked_order: doc.name })
+      .eq("ticket_id", ticketId.toString());
+
+    if (!error) linked++;
+  }
+  return linked;
+}
+
+// ── Alerts ─────────────────────────────────────────────────
+
+async function generateAlerts(orders: any[]) {
+  const fourHoursAgo = new Date(Date.now() - 4 * 3600000).toISOString();
+  let inserted = 0;
+
+  for (const doc of orders) {
+    const status = doc.custom_ops_status || "";
+    if (["COMPLETED", "SHIPPED"].includes(status)) continue;
+
+    const agent = extractAgent(doc);
+    const soName = doc.custom_sales_order_name || doc.name;
+    const days = daysSince(doc.modified);
+    const alerts: any[] = [];
+
+    if (doc.custom_is_rush_order === 1) {
+      alerts.push({ alert_type: "rush_order", severity: "critical",
+        title: `Rush order ${soName}`,
+        description: `${doc.customer_name || doc.custom_end_customer_name || ""} — ${status}, agent: ${agent || "unassigned"}`,
+        order_name: doc.name, agent_name: agent });
+    }
+    if (days > 7) {
+      alerts.push({ alert_type: "stuck_order", severity: "critical",
+        title: `${soName} stuck ${days}d`,
+        description: `In "${status}" for ${days} days`,
+        order_name: doc.name, agent_name: agent });
+    } else if (days > 3) {
+      alerts.push({ alert_type: "stuck_order", severity: "warning",
+        title: `${soName} stuck ${days}d`,
+        description: `In "${status}" for ${days} days`,
+        order_name: doc.name, agent_name: agent });
+    }
+
+    for (const a of alerts) {
+      const { data: ex } = await supabase.from("alerts").select("id")
+        .eq("order_name", a.order_name).eq("alert_type", a.alert_type)
+        .eq("is_resolved", false).gte("created_at", fourHoursAgo).limit(1);
+      if (ex && ex.length > 0) continue;
+      const { error } = await supabase.from("alerts").insert(a);
+      if (!error) inserted++;
+    }
+  }
+  return inserted;
+}
+
+// ── Metrics ────────────────────────────────────────────────
+
+async function updateMetrics() {
+  const today = new Date().toISOString().split("T")[0];
+
+  const { data: existingSOD } = await supabase.from("sod_eod_log")
+    .select("id").eq("log_date", today).eq("log_type", "SOD").limit(1);
+  const logType = existingSOD && existingSOD.length > 0 ? "EOD" : "SOD";
+
+  for (const [email, name] of Object.entries(OPS_AGENTS)) {
+    const { count: newCount } = await supabase.from("orders")
+      .select("*", { count: "exact", head: true })
+      .eq("assigned_agent", name).eq("ops_status", "NEW");
+
+    const { count: confPending } = await supabase.from("orders")
+      .select("*", { count: "exact", head: true })
+      .eq("assigned_agent", name).eq("ops_status", "CONFIRMATION PENDING");
+
+    const { count: inProd } = await supabase.from("orders")
+      .select("*", { count: "exact", head: true })
+      .eq("assigned_agent", name).in("ops_status", ["IN PRODUCTION", "PRODUCTION STARTED"]);
+
+    const { count: completed } = await supabase.from("orders")
+      .select("*", { count: "exact", head: true })
+      .eq("assigned_agent", name).eq("ops_status", "COMPLETED");
+
+    const { count: totalAssigned } = await supabase.from("orders")
+      .select("*", { count: "exact", head: true })
+      .eq("assigned_agent", name);
+
+    const nc = newCount || 0;
+
+    await supabase.from("sod_eod_log").upsert({
+      log_date: today, log_type: logType, agent_name: name,
+      new_count: nc, confirmation_pending_count: confPending || 0,
+      in_production_count: inProd || 0, total_count: totalAssigned || 0,
+      captured_at: new Date().toISOString(),
+    }, { onConflict: "log_date,log_type,agent_name" });
+
+    const { data: sodRow } = await supabase.from("sod_eod_log")
+      .select("new_count").eq("log_date", today).eq("log_type", "SOD")
+      .eq("agent_name", name).limit(1);
+    const sodNew = sodRow?.[0]?.new_count ?? nc;
+
+    await supabase.from("agent_metrics").upsert({
+      agent_name: name, agent_email: email, metric_date: today,
+      sod_new: sodNew, current_new: nc,
+      worked: Math.max(0, sodNew - nc),
+      confirmation_pending: confPending || 0,
+      in_production: inProd || 0,
+      completed: completed || 0,
+      total_assigned: totalAssigned || 0,
+      emails_sent: 0, emails_received: 0,
+    }, { onConflict: "agent_name,metric_date" });
+  }
+  return logType;
+}
+
+// ── Main ───────────────────────────────────────────────────
+
+serve(async (req: Request) => {
+  const startTime = Date.now();
+  try {
+    const body = await req.json().catch(() => ({}));
+    const fullSync = body.full === true;
+
+    console.log(`[sync-erpnext] Started, fullSync=${fullSync}`);
+
+    let orderNames: string[];
+    if (fullSync) {
+      orderNames = await fetchAllActiveOrderNames();
+    } else {
+      orderNames = await fetchRecentOrderNames(30);
+    }
+    console.log(`[sync-erpnext] Found ${orderNames.length} orders`);
+
+    const capped = orderNames.slice(0, 100);
+    const orders = await fetchOrderDetails(capped);
+    console.log(`[sync-erpnext] Fetched ${orders.length} details`);
+
+    const stats = await syncOrders(orders);
+    console.log(`[sync-erpnext] Synced: ${stats.upserted}, Errors: ${stats.errors}`);
+
+    const linkedCount = await linkTicketsToOrders(orders);
+    const alertCount = await generateAlerts(orders);
+    const logType = await updateMetrics();
+
+    const elapsed = Date.now() - startTime;
+    console.log(`[sync-erpnext] Done in ${elapsed}ms`);
+
+    return new Response(JSON.stringify({
+      ok: true, elapsed_ms: elapsed,
+      orders_found: orderNames.length, orders_synced: stats.upserted,
+      errors: stats.errors, tickets_linked: linkedCount,
+      alerts: alertCount, sod_eod: logType,
+      capped: orderNames.length > 100,
+    }), { headers: { "Content-Type": "application/json" } });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error(`[sync-erpnext] Fatal: ${msg}`);
+    return new Response(JSON.stringify({ ok: false, error: msg }), {
+      status: 500, headers: { "Content-Type": "application/json" },
+    });
+  }
+});
