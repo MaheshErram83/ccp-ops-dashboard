@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CCP Ops Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+         background: #f4f6f9; color: #1a1f2e; }
+  .topbar { background: #1e3a5f; color: #fff; padding: 16px 28px; display: flex;
+            align-items: center; justify-content: space-between; }
+  .topbar h1 { font-size: 19px; font-weight: 600; }
+  .topbar .sub { font-size: 12px; color: #b9c7dd; margin-top: 2px; }
+  .topbar .upd { font-size: 12px; color: #9fb2ce; }
+  .tabs { display: flex; gap: 4px; padding: 0 28px; background: #24456b;
+          overflow-x: auto; }
+  .tab { padding: 12px 18px; color: #c3d3e8; cursor: pointer; font-size: 14px;
+         border-bottom: 3px solid transparent; white-space: nowrap; }
+  .tab:hover { color: #fff; }
+  .tab.active { color: #fff; border-bottom-color: #4a9eff; font-weight: 600; }
+  .container { max-width: 1150px; margin: 0 auto; padding: 24px 28px; }
+  .section { margin-bottom: 28px; }
+  .section h2 { font-size: 15px; font-weight: 600; margin-bottom: 12px; color: #2c3e50;
+                display: flex; align-items: center; gap: 8px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+           gap: 12px; margin-bottom: 8px; }
+  .card { background: #fff; border-radius: 10px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+  .card .lbl { font-size: 12px; color: #7a8699; text-transform: uppercase;
+               letter-spacing: 0.03em; margin-bottom: 6px; }
+  .card .val { font-size: 26px; font-weight: 700; color: #1e3a5f; }
+  table { width: 100%; border-collapse: collapse; background: #fff;
+          border-radius: 10px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+  th, td { padding: 10px 13px; font-size: 13px; text-align: right; }
+  th { background: #f7f9fc; color: #6b7688; font-weight: 600; border-bottom: 2px solid #e6eaf0; }
+  th:first-child, td:first-child { text-align: left; }
+  td { border-bottom: 1px solid #f0f2f6; }
+  .stage { font-weight: 600; color: #1e3a5f; }
+  .zero { color: #c9cfd8; }
+  .totcol { font-weight: 600; color: #1e3a5f; }
+  .totrow td { border-top: 2px solid #e6eaf0; background: #fafbfd; font-weight: 600; }
+  .loading, .error { text-align: center; padding: 40px; color: #7a8699; }
+  .error { color: #d64545; }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div>
+    <h1>CCP Ops Dashboard</h1>
+    <div class="sub">ZIP Order Processing · Team Performance</div>
+  </div>
+  <div class="upd" id="updated"></div>
+</div>
+<div class="tabs" id="tabs"></div>
+<div class="container" id="content"><div class="loading">Loading…</div></div>
+
+<script>
+const SUPABASE_URL = "https://ovmbykpmjeurzeeqjntr.supabase.co";
+const SUPABASE_KEY = "sb_publishable_cOO_6TKEMchrsLZX05B5Ag_Ii75Ag-p";
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const STAGES = ["SOD","Handling","Pending","Missed","EOD"];
+const COLS = ["new","open","internal_open","pending","on_hold","solved"];
+const COL_LABELS = { new:"New", open:"Open", internal_open:"Internal-Open",
+                     pending:"Pending", on_hold:"On-hold", solved:"Solved" };
+
+let matrix = [], shift = [], daily = [], agents = [], current = "Team";
+
+async function loadAll() {
+  try {
+    const [m, s, d] = await Promise.all([
+      sb.from("status_matrix").select("*"),
+      sb.from("agent_shift_report").select("*"),
+      sb.from("daily_ops_report").select("*"),
+    ]);
+    if (m.error) throw m.error;
+    matrix = m.data || [];
+    shift = s.data || [];
+    daily = d.data || [];
+    agents = [...new Set(matrix.map(r => r.agent))].sort();
+    document.getElementById("updated").textContent = "Live · " + new Date().toLocaleString();
+    buildTabs();
+    render("Team");
+  } catch (e) {
+    document.getElementById("content").innerHTML =
+      '<div class="error">Couldn\'t load data: ' + e.message + '</div>';
+  }
+}
+
+function buildTabs() {
+  const t = document.getElementById("tabs");
+  const all = ["Team", ...agents];
+  t.innerHTML = all.map(a =>
+    '<div class="tab' + (a==="Team"?" active":"") + '" data-a="' + a + '">' + a + '</div>'
+  ).join("");
+  t.querySelectorAll(".tab").forEach(el => {
+    el.addEventListener("click", () => {
+      t.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
+      el.classList.add("active");
+      render(el.dataset.a);
+    });
+  });
+}
+
+function matrixTable(agent) {
+  const rows = matrix.filter(r => r.agent === agent);
+  const look = {}; rows.forEach(r => look[r.stage+"|"+r.status] = r.count);
+  const colT = {}; COLS.forEach(c => colT[c]=0);
+  let html = '<table><thead><tr><th>Status</th>';
+  COLS.forEach(c => html += '<th>'+COL_LABELS[c]+'</th>');
+  html += '<th class="totcol">Total</th></tr></thead><tbody>';
+  STAGES.forEach(stage => {
+    html += '<tr><td class="stage">'+stage+'</td>';
+    let rt = 0;
+    COLS.forEach(c => { const v = look[stage+"|"+c]||0; rt+=v; colT[c]+=v;
+      html += '<td class="'+(v===0?'zero':'')+'">'+v+'</td>'; });
+    html += '<td class="totcol">'+rt+'</td></tr>';
+  });
+  let g=0; html += '<tr class="totrow"><td class="stage">Total</td>';
+  COLS.forEach(c => { g+=colT[c]; html += '<td>'+colT[c]+'</td>'; });
+  html += '<td>'+g+'</td></tr></tbody></table>';
+  return html;
+}
+
+function shiftCards(agent) {
+  const r = shift.find(x => x.agent === agent);
+  if (!r) return '<div class="loading">No shift data</div>';
+  const items = [
+    ["Solved", r.tickets_solved], ["Replied", r.tickets_replied],
+    ["Pending (EOD)", r.pending_open_eod], ["On Name", r.total_on_name_followups],
+    ["Followup Closed", r.followup_tickets_closed]
+  ];
+  return '<div class="cards">' + items.map(([l,v]) =>
+    '<div class="card"><div class="lbl">'+l+'</div><div class="val">'+(v??0)+'</div></div>'
+  ).join("") + '</div>';
+}
+
+function prodCards(agent) {
+  const rows = daily.filter(x => x.agent === agent);
+  const today = rows.sort((a,b) => (b.date>a.date?1:-1))[0];
+  if (!today) return '<div class="loading">No productivity data</div>';
+  const items = [
+    ["Opening (SOD)", today.opening_sod], ["New", today.new_open],
+    ["Handled", today.handled], ["Closed", today.closed],
+    ["Missed", today.missed], ["Productivity %", today.productivity_pct]
+  ];
+  return '<div class="cards">' + items.map(([l,v]) =>
+    '<div class="card"><div class="lbl">'+l+'</div><div class="val">'+(v??0)+'</div></div>'
+  ).join("") + '</div>';
+}
+
+function teamView() {
+  let html = '<div class="section"><h2>Team Overview — Shift Activity</h2>';
+  html += '<table><thead><tr><th>Agent</th><th>Solved</th><th>Replied</th>'
+        + '<th>Pending EOD</th><th>On Name</th><th>Followup Closed</th></tr></thead><tbody>';
+  agents.forEach(a => {
+    const r = shift.find(x => x.agent === a) || {};
+    html += '<tr><td class="stage">'+a+'</td>'
+          + '<td>'+(r.tickets_solved??0)+'</td>'
+          + '<td>'+(r.tickets_replied??0)+'</td>'
+          + '<td>'+(r.pending_open_eod??0)+'</td>'
+          + '<td>'+(r.total_on_name_followups??0)+'</td>'
+          + '<td>'+(r.followup_tickets_closed??0)+'</td></tr>';
+  });
+  html += '</tbody></table></div>';
+
+  html += '<div class="section"><h2>Team Overview — Productivity (Today)</h2>';
+  html += '<table><thead><tr><th>Agent</th><th>SOD</th><th>New</th><th>Handled</th>'
+        + '<th>Closed</th><th>Missed</th><th>Prod %</th></tr></thead><tbody>';
+  agents.forEach(a => {
+    const rows = daily.filter(x => x.agent === a);
+    const t = rows.sort((x,y) => (y.date>x.date?1:-1))[0] || {};
+    html += '<tr><td class="stage">'+a+'</td>'
+          + '<td>'+(t.opening_sod??0)+'</td><td>'+(t.new_open??0)+'</td>'
+          + '<td>'+(t.handled??0)+'</td><td>'+(t.closed??0)+'</td>'
+          + '<td>'+(t.missed??0)+'</td><td>'+(t.productivity_pct??0)+'</td></tr>';
+  });
+  html += '</tbody></table></div>';
+  return html;
+}
+
+function render(agent) {
+  current = agent;
+  let html = "";
+  if (agent === "Team") {
+    html = teamView();
+  } else {
+    html = '<div class="section"><h2>Status Matrix</h2>' + matrixTable(agent) + '</div>'
+         + '<div class="section"><h2>Shift Activity</h2>' + shiftCards(agent) + '</div>'
+         + '<div class="section"><h2>Productivity (Today)</h2>' + prodCards(agent) + '</div>';
+  }
+  document.getElementById("content").innerHTML = html;
+}
+
+loadAll();
+</script>
+</body>
+</html>
